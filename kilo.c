@@ -128,9 +128,10 @@ void die(const char *s){
 
 /*** debug ***/
 
-void debug(const char *fmt, ...) {
+void debug(const char *key, const char *fmt, ...) {
     const char *filename = "log.txt";
-    char buffer[1024]; 
+    char buffer[1024];
+    char log_message[2048]; 
     va_list ap;
 
     va_start(ap, fmt);
@@ -143,16 +144,21 @@ void debug(const char *fmt, ...) {
         die("Output truncated: buffer size insufficient");
     }
 
-    int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    int m = snprintf(log_message, sizeof(log_message), "%s: %s\n", key, buffer);
+    if (m < 0 || m >= (int)sizeof(log_message)) {
+        die("Output truncated: log_message buffer size insufficient");
+    }
+
+    int fd = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
     if (fd == -1) {
         die("Failed to open the file");
     }
 
     ssize_t total_written = 0;
-    ssize_t to_write = strlen(buffer);
+    ssize_t to_write = strlen(log_message);
 
     while (total_written < to_write) {
-        ssize_t bytes_written = write(fd, buffer + total_written, to_write - total_written);
+        ssize_t bytes_written = write(fd, log_message + total_written, to_write - total_written);
         if (bytes_written == -1) {
             close(fd);
             die("Failed to write to the file");
@@ -662,19 +668,48 @@ void editorInsertChar(int c){
     editorRowInsertChar(&E.row[E.cy], E.cx++, c);
 }
 
+int editorCountIndent(erow *row){
+    int count = 0;
+    for (int i = 0; i < row->size; i++){
+        if (row->chars[i] != '\t'){
+            return count;
+        }
+        count++;
+    }
+
+    return count;
+}
+
 void editorInsertNewline(){
     if (E.cx == 0){
         editorInsertRow(E.cy, "", 0);
+        E.cy++;
+        E.cx = 0;
     }else{
         erow *row = &E.row[E.cy];
-        editorInsertRow(E.cy + 1, &row->chars[E.cx], row->size - E.cx);
+        int indent_count = editorCountIndent(row);
+        if (indent_count > 0){
+            char *buf = malloc(sizeof(char) * (indent_count + row->size - E.cx + 1));
+
+            int i;
+            for (i = 0; i < indent_count; i++) {
+                buf[i] = '\t';
+            }
+            
+            buf[i] = '\0';
+            
+            strcat(buf, &row->chars[E.cx]);
+            editorInsertRow(E.cy + 1, buf, indent_count + row->size - E.cx);
+        }else {
+            editorInsertRow(E.cy + 1, &row->chars[E.cx], row->size - E.cx);
+        }
         row = &E.row[E.cy];
         row->size = E.cx;
         row->chars[row->size] = '\0';
+        E.cy++;
+        E.cx = indent_count;
         editorUpdateRow(row);
     }
-    E.cy++;
-    E.cx = 0;
 }
 
 void editorDelChar(){
