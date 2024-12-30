@@ -725,6 +725,8 @@ void editorOpen(char *filename){
 
     FILE *fp = fopen(filename, "r");
     if (!fp){
+        E.dirty = 0;
+        return;
         die("editor open");
     }
     char *line = NULL;
