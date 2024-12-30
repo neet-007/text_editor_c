@@ -411,7 +411,7 @@ void editorUpdateSyntax(erow *row) {
             }
         }
         if (E.syntax->flags & HL_HIGHLIGHT_NUMBERS){
-            if ((isdigit(c)) && (prev_sep || prev_hl == HL_NUMBER) || (c == '.' && prev_hl == HL_NUMBER)){
+            if (((isdigit(c)) && (prev_sep || prev_hl == HL_NUMBER)) || ((c == '.') && prev_hl == HL_NUMBER)) {
                 row->hl[i] = HL_NUMBER;
                 prev_sep = 0;
                 i++;
