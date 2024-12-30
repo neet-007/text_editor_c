@@ -684,7 +684,7 @@ void editorDelChar(){
 
     erow *row = &E.row[E.cy];
     if (E.cx > 0){
-        editorRowDelChar(row, E.cx--);
+        editorRowDelChar(row, --E.cx);
     }else{
         E.cx = E.row[E.cy - 1].size;
         editorRowAppendString(&E.row[E.cy - 1], row->chars, row->size);
