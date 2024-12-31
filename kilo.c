@@ -18,6 +18,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <fcntl.h> 
+#include <sys/utsname.h>
 
 /*** defines ***/
 #define KILO_VERSION "0.0.1"
@@ -25,6 +26,25 @@
 #define KILO_QUIT_TIMES 3
 
 #define CTRL_KEY(k) ((k) & 0x1f)
+
+enum OS_TYPE { 
+    OS_UNKNOWN,
+    OS_WINDOWS,
+    OS_LINUX,
+    OS_MACOS 
+};
+
+enum OS_TYPE detect_os() {
+#ifdef _WIN32
+    return OS_WINDOWS;
+#elif __APPLE__
+    return OS_MACOS;
+#elif __linux__
+    return OS_LINUX;
+#else
+    return OS_UNKNOWN;
+#endif
+}
 
 enum editorKey {
     BACKSPACE = 127,
@@ -76,6 +96,7 @@ typedef struct erow{
 }erow;
 
 struct editorConfig{
+    int os_type;
     int cx, cy;
     int rowoff, coloff;
     int rx;
@@ -728,6 +749,32 @@ void editorDelChar(){
     }
 }
 
+void editorCopy(const char *text) {
+    FILE *fp = popen("xclip -selection clipboard", "w");
+    if (fp == NULL) {
+        perror("Failed to run xclip");
+        return;
+    }
+
+    fprintf(fp, "%s", text);
+    pclose(fp);
+    
+}
+
+void editorPaste(){
+    FILE *fp = popen("xclip -selection clipboard -o", "r");
+    if (fp == NULL) {
+        die("Failed to run xclip");
+    }
+
+    static char buffer[1024];
+    if (fgets(buffer, sizeof(buffer), fp) == NULL) {
+        pclose(fp);
+    }
+
+    pclose(fp);
+}
+
 /*** file i/o ***/
 
 char *editorRowsToString(int *buflen){
@@ -1195,6 +1242,16 @@ void editorProccessKeyPress(){
             break;
         }
 
+        case CTRL_KEY('c'):{
+            editorCopy("Hello, Clipboard!");
+            break;
+        }
+
+        case CTRL_KEY('v'):{
+            editorPaste();
+            break;
+        }
+
         case CTRL_KEY('s'):{
             editorSave();
             break;
@@ -1265,6 +1322,11 @@ void initEditor(){
     E.statusmsg[0] = '\0';
     E.statusmsg_time = 0;
 
+    int os = detect_os();
+    if (os == 0){
+        die("unkown os");
+    }
+    E.os_type = os;
     if (getWindowSize(&E.screenrows, &E.screencols) == -1){
         die("getWindowSize");
     }
