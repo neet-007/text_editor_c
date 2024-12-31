@@ -1,4 +1,26 @@
 #include "ini_parser.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+int valid_char(char c){
+    return (isalnum(c) || c == '_' || c == '-' || c == ' ' || c == '\t');
+}
+
+char *strip_str(char *str) {
+    char *p = str + strlen(str);
+    while (p > str && isspace((unsigned char)(*(p - 1)))) {
+        if (*(p - 1) == '\n' || *(p - 1) == '\r') {
+            break; 
+        }
+        *--p = '\0';
+    }
+
+    while (*str != '\0' && isspace((unsigned char)(*str)) && *str != '\n' && *str != '\r') {
+        str++;
+    }
+
+    return str;
+}
 
 char *parse_comment(FILE *file, int *len){
     char buf;   
@@ -71,10 +93,14 @@ char *parse_section(FILE *file, int *len){
                 }
                 section[(*len)++] = '\n';
                 section[(*len)] = '\0';
-                return section;
+                return strip_str(section);
             }
 
             default:{
+                if (!valid_char(buf)){
+                    free(section);
+                    return NULL;
+                }
                 if (*len >= size){
                     size *= 2;
                     section = realloc(section, size);
@@ -95,6 +121,11 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
     int key_size = 128;
     int val_size = 128;
 
+    int ret = fseek(file, -1, SEEK_CUR);
+    if (ret != 0){
+        return 0;
+    }
+
     *key = malloc(sizeof(char) * key_size);
     if (*key == NULL) {
         return 0;
@@ -106,8 +137,24 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
         return 0;
     }
 
+    char q = -1;
     while ((buf = fgetc(file)) != EOF) {
         switch (buf) {
+            case '"':
+            case '\'':{
+                if (q == -1){
+                    q = buf;
+                }else if (q != buf){
+                    free(*key);
+                    free(*val);
+                    return 0;
+                }else{
+                    q = -1;
+                }
+
+                break;
+            }
+
             case ']': {
                 free(*key);
                 free(*val);
@@ -118,6 +165,11 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
             case ';':
             case '\n':
             case '\r': {
+                if (q != -1){
+                    free(*key);
+                    free(*val);
+                    return 0;
+                }
                 if (buf == '#' || buf == ';'){
                     int comment_len = 0;
                     char *comment = parse_comment(file, &comment_len);
@@ -149,37 +201,41 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
                 (*val)[(*val_len)++] = '\n';
                 (*val)[*val_len] = '\0';
 
+                *key = strip_str(*key);
+                *val= strip_str(*val);
                 return 1;
             }
 
             case '=': {
+                if (q != -1){
+                    free(*key);
+                    free(*val);
+                    return 0;
+                }
                 is_key = 0;
+                q = -1;
                 break;
             }
 
             default: {
                 if (is_key) {
                     if (*key_len >= key_size) {
-                        key_size *= 2;
-                        *key = realloc(*key, key_size);
+                        *key = realloc(*key, ++key_size);
                         if (*key == NULL) {
                             free(*val);
                             return 0;
                         }
                     }
-                    (*key)[*key_len] = buf;
-                    (*key_len)++;
+                    (*key)[(*key_len)++] = buf;
                 } else {
                     if (*val_len >= val_size) {
-                        val_size *= 2;
-                        *val = realloc(*val, val_size);
+                        *val = realloc(*val, ++val_size);
                         if (*val == NULL) {
                             free(*key);
                             return 0;
                         }
                     }
-                    (*val)[*val_len] = buf;
-                    (*val_len)++;
+                    (*val)[(*val_len)++] = buf;
                 }
                 break;
             }
@@ -216,7 +272,7 @@ int parse_ini(const char *filename){
                     fclose(file);
                     return 0;
                 }
-                printf("comment: %s", comment);
+                printf("comment:%s", comment);
                 break;
             }
 
@@ -228,7 +284,7 @@ int parse_ini(const char *filename){
                     return 0;
                 }
                 current_section = section;
-                printf("section: %s", section);
+                printf("section:%s", section);
                 break;
             }
 
@@ -244,7 +300,7 @@ int parse_ini(const char *filename){
                 if (!res){
                     return 0;
                 }
-                printf("key-> %s: val -> %s", key, val);
+                printf("key->%s: val ->%s", key, val);
                 break;
             }
         }       
