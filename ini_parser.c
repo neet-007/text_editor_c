@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 int valid_char(char c){
-    return (isalnum(c) || c == '_' || c == '-' || c == ' ' || c == '\t');
+    return (isalnum(c) || c == '_' || c == '-' || c == ' ' || c == '\t' || c == ':' || c == '.');
 }
 
 char *strip_str(char *str) {
