@@ -3,3 +3,4 @@ test
 test.*
 *.txt
 *.out
+test_parser/*

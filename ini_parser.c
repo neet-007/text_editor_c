@@ -1,23 +1,32 @@
 #include "ini_parser.h"
+#include <stdio.h>
 
 int valid_char(char c){
     return (isalnum(c) || c == '_' || c == '-' || c == ' ' || c == '\t' || c == ':' || c == '.');
 }
 
-char *strip_str(char *str) {
-    char *p = str + strlen(str);
-    while (p > str && isspace((unsigned char)(*(p - 1)))) {
-        if (*(p - 1) == '\n' || *(p - 1) == '\r') {
-            break; 
-        }
-        *--p = '\0';
+char *strip_str(char *s) {
+    size_t size;
+    char *end;
+
+    size = strlen(s);
+
+    if (!size){
+        return s;
     }
 
-    while (*str != '\0' && isspace((unsigned char)(*str)) && *str != '\n' && *str != '\r') {
-        str++;
+    end = s + size - 1;
+    while (end >= s && isspace(*end)){
+        end--;
+    }
+    *(end + 1) = '\0';
+
+    while (*s && isspace(*s)){
+
+        s++;
     }
 
-    return str;
+    return s;
 }
 
 char *parse_comment(FILE *file, int *len){
@@ -59,6 +68,9 @@ char *parse_comment(FILE *file, int *len){
         }
     }
 
+    if (comment){
+        free(comment);
+    }
     return NULL;
 }
 
@@ -83,10 +95,12 @@ char *parse_section(FILE *file, int *len){
             case ']':{
                 if (*len >= size){
                     size += 2;
-                    section =realloc(section, size);
-                    if (section == NULL){
+                    char *temp = realloc(section, size);
+                    if (temp == NULL) {
+                        free(section);
                         return NULL;
                     }
+                    section = temp;
 
                 }
                 section[(*len)++] = '\n';
@@ -101,14 +115,20 @@ char *parse_section(FILE *file, int *len){
                 }
                 if (*len >= size){
                     size *= 2;
-                    section = realloc(section, size);
-                    if (section == NULL){
+                    char *temp = realloc(section, size);
+                    if (temp == NULL) {
+                        free(section);
                         return NULL;
                     }
+                    section = temp;
                 }
                 section[(*len)++] = buf;
             }
         }       
+    }
+
+    if (section){
+        free(section);
     }
     return NULL;
 }
@@ -143,8 +163,12 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
                 if (q == -1){
                     q = buf;
                 }else if (q != buf){
-                    free(*key);
-                    free(*val);
+                    if (*key){
+                        free(*key);
+                    }
+                    if (*val){
+                        free(*val);
+                    }
                     return 0;
                 }else{
                     q = -1;
@@ -154,8 +178,12 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
             }
 
             case ']': {
-                free(*key);
-                free(*val);
+                if (*key){
+                    free(*key);
+                }
+                if (*val){
+                    free(*val);
+                }
                 return 0;
             }
 
@@ -164,16 +192,24 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
             case '\n':
             case '\r': {
                 if (q != -1){
-                    free(*key);
-                    free(*val);
+                    if (*key){
+                        free(*key);
+                    }
+                    if (*val){
+                        free(*val);
+                    }
                     return 0;
                 }
                 if (buf == '#' || buf == ';'){
                     int comment_len = 0;
                     char *comment = parse_comment(file, &comment_len);
                     if (comment == NULL){
-                        free(*key);
-                        free(*val);
+                        if (*key){
+                            free(*key);
+                        }
+                        if (*val){
+                            free(*val);
+                        }
                         return 0;
                     }
                     //printf("found inlince comment %s\n", comment);
@@ -200,7 +236,7 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
                 (*val)[*val_len] = '\0';
 
                 *key = strip_str(*key);
-                *val= strip_str(*val);
+                *val = strip_str(*val);
                 return 1;
             }
 
@@ -217,8 +253,12 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
                     break;
                 }
                 if (q != -1){
-                    free(*key);
-                    free(*val);
+                    if (*key){
+                        free(*key);
+                    }
+                    if (*val){
+                        free(*val);
+                    }
                     return 0;
                 }
                 is_key = 0;
@@ -251,8 +291,12 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
         }
     }
 
-    free(*key);
-    free(*val);
+    if (*key){
+        free(*key);
+    }
+    if (*val){
+        free(*val);
+    }
     return 0;
 }
 
@@ -273,8 +317,17 @@ Ini *parse_ini(const char *filename){
     }
 
     ini->sections = create_table(CAPACITY);
-    char *saved_filename = malloc(sizeof(char) * strlen(filename));
-    ini->filename = strcpy(saved_filename, filename);
+    if (ini->sections == NULL){
+        return NULL;
+    }
+
+    ini->filename = (char *) malloc(sizeof(char) * strlen(filename) + 1);
+    if (ini->filename == NULL){
+        free_table(ini->sections);
+        return NULL;
+    }
+
+    strcpy(ini->filename, filename);
     while ((buf = fgetc(file)) != EOF) {
         switch (buf) {
             case '\n':
@@ -288,6 +341,11 @@ Ini *parse_ini(const char *filename){
                 char *comment = parse_comment(file, &len);
                 if (comment == NULL){
                     fclose(file);
+                    if (current_section){
+                        free(current_section);
+                    }
+                    free(ini->filename);
+                    free_table(ini->sections);
                     return NULL;
                 }
                 //printf("comment:%s", comment);
@@ -300,21 +358,38 @@ Ini *parse_ini(const char *filename){
                 char *section = parse_section(file, &len);
                 if (section == NULL){
                     fclose(file);
+                    if (current_section){
+                        free(current_section);
+                    }
+                    free(ini->filename);
+                    free_table(ini->sections);
                     return NULL;
                 }
                 void *ret = ht_search(ini->sections, section);
                 if (ret != NULL){
                     printf("duplicate section error %s\n", section);
+                    free(ret);
+                    free(section);
+                    if (current_section){
+                        free(current_section);
+                    }
+                    free(ini->filename);
+                    free_table(ini->sections);
                     return NULL;
                 }
                 HashTable *section_table = create_table(CAPACITY);
                 ht_insert(ini->sections, section, section_table, sizeof(HashTable), TYPE_HASH_TABLE);
                 current_section = section_table;
+                if (section){
+                    free(section);
+                }
                 break;
             }
 
             default:{
                 if (current_section == NULL){
+                    free(ini->filename);
+                    free_table(ini->sections);
                     return NULL;
                 }
 
@@ -324,32 +399,77 @@ Ini *parse_ini(const char *filename){
                 int val_len = 0;
                 int res = parse_key_val(file, &key_len, &val_len, &key, &val);
                 if (!res){
+                    if (key){
+                        free(key);
+                    }
+                    if (val){
+                        free(val);
+                    }
+                    if (current_section){
+                        free(current_section);
+                    }
+                    free(ini->filename);
+                    free_table(ini->sections);
                     return NULL;
                 }
 
                 ht_insert(current_section, key, val, val_len, TYPE_STR);
+                if (key){
+                    free(key);
+                }
+                if (val){
+                    free(val);
+                }
                 break;
             }
         }       
     }
 
+    if (current_section){
+        free(current_section);
+    }
     fclose(file);
     return ini;
 }
 
+void test_ini_parser(const char *directory){
+    struct dirent *entry;
+    DIR *dir = opendir(directory);
+
+    if (!dir) {
+        perror("Unable to open directory");
+        return;
+    }
+
+    printf("INI files in directory %s:\n", directory);
+    while ((entry = readdir(dir)) != NULL) {
+        const char *name = entry->d_name;
+        const char *ext = strrchr(name, '.'); // Find the last '.'
+
+        if (ext && strcmp(ext, ".ini") == 0) {
+            printf("- %s\n", name);
+
+            char file_path[1024];
+            snprintf(file_path, sizeof(file_path), "%s/%s", directory, name);
+
+            Ini *ini = parse_ini(file_path);
+            if (ini == NULL){
+                printf("failed\n");
+                continue;
+            }
+
+            printf("filename %s\n", ini->filename);
+            //print_table(ini->sections, 0);
+            free(ini->filename);
+            free_table(ini->sections);
+            free(ini);
+        }
+    }
+
+    closedir(dir);
+}
+
 int main(int argc, char*argv[]){
-    if (argc < 2){
-        printf("must provied path\n");
-        return 1;
-    }
-
-    Ini *ini = parse_ini(argv[1]);
-    if (ini == NULL){
-        printf("failed\n");
-        return 1;
-    }
-
-    printf("filename %s\n", ini->filename);
-    print_table(ini->sections, 0);
+    test_ini_parser("./test_parser/");
     return 0;
 }

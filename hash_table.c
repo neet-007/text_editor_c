@@ -1,4 +1,5 @@
 #include "hash_table.h"
+#include <stdio.h>
 
 unsigned long djb2(const char *str) {
     unsigned long hash = 5381;
@@ -150,12 +151,14 @@ HashTable *create_table(int size) {
 void free_item(Ht_item *item) {
     switch (item->value_type) {
         case TYPE_INT:
+            free((int *)item->value);
+            break;
         case TYPE_STR:{
-            free(item->value);
+            free((char *)item->value);
             break;
         }
         case TYPE_HASH_TABLE:{
-            free_table(item->value);
+            free_table((HashTable *)item->value);
             break;
         }
         default:{
