@@ -1,12 +1,17 @@
 #include "hash_table.h"
 
+unsigned long djb2(const char *str) {
+    unsigned long hash = 5381;
+    int c;
+    while ((c = *str++)) {
+        hash = ((hash << 5) + hash) + c; 
+    }
+    return hash;
+}
+
 unsigned long hash_function(char* str) {
-    unsigned long i = 0;
-
-    for (int j = 0; str[j]; j++)
-        i += str[j];
-
-    return i % CAPACITY;
+    unsigned long hash = djb2(str);
+    return hash % CAPACITY;
 }
 
 LinkedList *allocate_list() {
@@ -98,12 +103,32 @@ void free_overflow_buckets(HashTable *table) {
     free(buckets);
 }
 
-Ht_item *create_item(char *key, char *value) {
+Ht_item *create_item(char *key, void *value, size_t value_size, ValueType value_type) {
     Ht_item *item = (Ht_item *)malloc(sizeof(Ht_item));
+    if (!item) {
+        perror("Failed to allocate memory for Ht_item");
+        exit(EXIT_FAILURE);
+    }
+
     item->key = (char *)malloc(strlen(key) + 1);
-    item->value = (char *)malloc(strlen(value) + 1);
+    if (!item->key) {
+        perror("Failed to allocate memory for key");
+        free(item);
+        exit(EXIT_FAILURE);
+    }
     strcpy(item->key, key);
-    strcpy(item->value, value);
+
+    item->value = malloc(value_size);
+    if (!item->value) {
+        perror("Failed to allocate memory for value");
+        free(item->key);
+        free(item);
+        exit(EXIT_FAILURE);
+    }
+    item->value_size = value_size;
+    item->value_type = value_type;
+    memcpy(item->value, value, value_size);
+
     return item;
 }
 
@@ -123,8 +148,24 @@ HashTable *create_table(int size) {
 }
 
 void free_item(Ht_item *item) {
+    switch (item->value_type) {
+        case TYPE_INT:
+        case TYPE_STR:{
+            free(item->value);
+            break;
+        }
+        case TYPE_HASH_TABLE:{
+            free_table(item->value);
+            break;
+        }
+        default:{
+            perror("wrong type for item");
+            free(item->key);
+            free(item);
+            exit(1);
+        }
+    }
     free(item->key);
-    free(item->value);
     free(item);
 }
 
@@ -151,14 +192,12 @@ void handle_collision(HashTable *table, unsigned long index, Ht_item *item) {
         table->overflow_buckets[index] = head;
         return;
     }
-    else {
-        table->overflow_buckets[index] = linkedlist_insert(head, item);
-        return;
-    }
+
+    table->overflow_buckets[index] = linkedlist_insert(head, item);
 }
 
-void ht_insert(HashTable *table, char *key, char *value) {
-    Ht_item *item = create_item(key, value);
+void ht_insert(HashTable *table, char *key, void *value, size_t value_size, ValueType value_type) {
+    Ht_item *item = create_item(key, value, value_size, value_type);
 
     int index = hash_function(key);
 
@@ -175,9 +214,8 @@ void ht_insert(HashTable *table, char *key, char *value) {
         table->count++;
     }
     else {
-        if (strcmp(current_item->key, key) == 0)
-        {
-            strcpy(table->items[index]->value, value);
+        if (strcmp(current_item->key, key) == 0) {
+            memcpy(table->items[index]->value, value, value_size);
             return;
         }
         else {
@@ -187,14 +225,14 @@ void ht_insert(HashTable *table, char *key, char *value) {
     }
 }
 
-char *ht_search(HashTable *table, char *key) {
+Ht_item *ht_search(HashTable *table, char *key) {
     int index = hash_function(key);
     Ht_item *item = table->items[index];
     LinkedList *head = table->overflow_buckets[index];
 
-    if (item != NULL) {
+    while (item != NULL) {
         if (strcmp(item->key, key) == 0){
-            return item->value;
+            return item;
         }
 
         if (head == NULL){
@@ -229,7 +267,7 @@ void ht_delete(HashTable *table, char *key) {
                 LinkedList *node = head;
                 head = head->next;
                 node->next = NULL;
-                table->items[index] = create_item(node->item->key, node->item->value);
+                table->items[index] = create_item(node->item->key, node->item->value, node->item->value_size, node->item->value_type);
                 free_linkedlist(node);
                 table->overflow_buckets[index] = head;
                 return;
@@ -258,5 +296,48 @@ void ht_delete(HashTable *table, char *key) {
                 prev = curr;
             }
         }
+    }
+}
+
+void print_table(HashTable *table, int indent) {
+    char *indent_str = malloc((sizeof(char) * indent) + 1);
+    if (indent_str == NULL){
+        printf("could not allocate indent\n");
+        exit(1);
+    }
+    int i = 0;
+    for (i = 0; i < indent; i++){
+        indent_str[i] = ' ';
+    }
+    indent_str[i] = '\0';
+
+    printf("\n%sHash Table\n%s-------------------\n", indent_str, indent_str);
+
+    for (int i = 0; i < table -> size; i++) {
+        if (table -> items[i]) {
+            switch (table->items[i]->value_type) {
+                case TYPE_INT:{
+                    printf("%sIndex:%d, Key:%s, Value:%d\n", indent_str, i, table -> items[i] -> key,(*(int *)table -> items[i] -> value));
+                    break;
+                }
+                case TYPE_STR:{
+                    printf("%sIndex:%d, Key:%s, Value:%s\n", indent_str, i, table -> items[i] -> key,(char *)table -> items[i] -> value);
+                    break;
+                }
+                case TYPE_HASH_TABLE:{
+                    print_table((HashTable *)table->items[i]->value, indent + 4);
+                    break;
+                }
+                default:{
+                    printf("unknown type\n");
+                    break;
+                }
+            }
+        }
+    }
+
+    printf("%s-------------------\n\n", indent_str);
+    if (indent_str != NULL){
+        free(indent_str);
     }
 }

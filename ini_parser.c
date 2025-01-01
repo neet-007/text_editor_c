@@ -1,6 +1,4 @@
 #include "ini_parser.h"
-#include <stdio.h>
-#include <stdlib.h>
 
 int valid_char(char c){
     return (isalnum(c) || c == '_' || c == '-' || c == ' ' || c == '\t' || c == ':' || c == '.');
@@ -178,7 +176,7 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
                         free(*val);
                         return 0;
                     }
-                    printf("found inlince comment %s\n", comment);
+                    //printf("found inlince comment %s\n", comment);
                     free(comment);
                 }
                 if (*key_len >= key_size){
@@ -207,6 +205,17 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
             }
 
             case '=': {
+                if (!is_key){
+                    if (*val_len >= val_size) {
+                        *val = realloc(*val, ++val_size);
+                        if (*val == NULL) {
+                            free(*key);
+                            return 0;
+                        }
+                    }
+                    (*val)[(*val_len)++] = buf;
+                    break;
+                }
                 if (q != -1){
                     free(*key);
                     free(*val);
@@ -247,16 +256,25 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
     return 0;
 }
 
-int parse_ini(const char *filename){
+Ini *parse_ini(const char *filename){
     FILE *file = fopen(filename, "r");
     if (!file){
-        return 0;
+        return NULL;
     }
     
-    char *current_section = NULL;
+    HashTable *current_section = NULL;
     char buf;   
     ssize_t buf_read;
 
+    Ini *ini = malloc(sizeof(Ini));
+    if (ini == NULL){
+        fclose(file);
+        return NULL;
+    }
+
+    ini->sections = create_table(CAPACITY);
+    char *saved_filename = malloc(sizeof(char) * strlen(filename));
+    ini->filename = strcpy(saved_filename, filename);
     while ((buf = fgetc(file)) != EOF) {
         switch (buf) {
             case '\n':
@@ -270,9 +288,10 @@ int parse_ini(const char *filename){
                 char *comment = parse_comment(file, &len);
                 if (comment == NULL){
                     fclose(file);
-                    return 0;
+                    return NULL;
                 }
-                printf("comment:%s", comment);
+                //printf("comment:%s", comment);
+                free(comment);
                 break;
             }
 
@@ -281,33 +300,41 @@ int parse_ini(const char *filename){
                 char *section = parse_section(file, &len);
                 if (section == NULL){
                     fclose(file);
-                    return 0;
+                    return NULL;
                 }
-                current_section = section;
-                printf("section:%s", section);
+                void *ret = ht_search(ini->sections, section);
+                if (ret != NULL){
+                    printf("duplicate section error %s\n", section);
+                    return NULL;
+                }
+                HashTable *section_table = create_table(CAPACITY);
+                ht_insert(ini->sections, section, section_table, sizeof(HashTable), TYPE_HASH_TABLE);
+                current_section = section_table;
                 break;
             }
 
             default:{
                 if (current_section == NULL){
-                    return 0;
+                    return NULL;
                 }
+
                 char *key;
                 char *val;
                 int key_len = 0;
                 int val_len = 0;
                 int res = parse_key_val(file, &key_len, &val_len, &key, &val);
                 if (!res){
-                    return 0;
+                    return NULL;
                 }
-                printf("key->%s: val ->%s", key, val);
+
+                ht_insert(current_section, key, val, val_len, TYPE_STR);
                 break;
             }
         }       
     }
 
     fclose(file);
-    return 1;
+    return ini;
 }
 
 int main(int argc, char*argv[]){
@@ -316,9 +343,13 @@ int main(int argc, char*argv[]){
         return 1;
     }
 
-    int res = parse_ini(argv[1]);
-    if (!res){
+    Ini *ini = parse_ini(argv[1]);
+    if (ini == NULL){
         printf("failed\n");
+        return 1;
     }
+
+    printf("filename %s\n", ini->filename);
+    print_table(ini->sections, 0);
     return 0;
 }
