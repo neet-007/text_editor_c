@@ -77,9 +77,7 @@ void free_linkedlist(LinkedList *list) {
     while (list) {
         temp = list;
         list = list->next;
-        free(temp->item->key);
-        free(temp->item->value);
-        free(temp->item);
+        free_item(temp->item);
         free(temp);
     }
 }

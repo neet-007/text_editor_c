@@ -163,10 +163,10 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
                 if (q == -1){
                     q = buf;
                 }else if (q != buf){
-                    if (*key){
+                    if (*key != NULL){
                         free(*key);
                     }
-                    if (*val){
+                    if (*val != NULL){
                         free(*val);
                     }
                     return 0;
@@ -178,10 +178,10 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
             }
 
             case ']': {
-                if (*key){
+                if (*key != NULL){
                     free(*key);
                 }
-                if (*val){
+                if (*val != NULL){
                     free(*val);
                 }
                 return 0;
@@ -192,10 +192,10 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
             case '\n':
             case '\r': {
                 if (q != -1){
-                    if (*key){
+                    if (*key != NULL){
                         free(*key);
                     }
-                    if (*val){
+                    if (*val != NULL){
                         free(*val);
                     }
                     return 0;
@@ -204,10 +204,10 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
                     int comment_len = 0;
                     char *comment = parse_comment(file, &comment_len);
                     if (comment == NULL){
-                        if (*key){
+                        if (*key != NULL){
                             free(*key);
                         }
-                        if (*val){
+                        if (*val != NULL){
                             free(*val);
                         }
                         return 0;
@@ -253,10 +253,10 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
                     break;
                 }
                 if (q != -1){
-                    if (*key){
+                    if (*key != NULL){
                         free(*key);
                     }
-                    if (*val){
+                    if (*val != NULL){
                         free(*val);
                     }
                     return 0;
@@ -291,10 +291,10 @@ int parse_key_val(FILE *file, int *key_len, int *val_len, char **key, char **val
         }
     }
 
-    if (*key){
+    if (*key != NULL){
         free(*key);
     }
-    if (*val){
+    if (*val != NULL){
         free(*val);
     }
     return 0;
@@ -318,12 +318,16 @@ Ini *parse_ini(const char *filename){
 
     ini->sections = create_table(CAPACITY);
     if (ini->sections == NULL){
+        free(ini);
+        fclose(file);
         return NULL;
     }
 
     ini->filename = (char *) malloc(sizeof(char) * strlen(filename) + 1);
     if (ini->filename == NULL){
+        fclose(file);
         free_table(ini->sections);
+        free(ini);
         return NULL;
     }
 
@@ -346,6 +350,7 @@ Ini *parse_ini(const char *filename){
                     }
                     free(ini->filename);
                     free_table(ini->sections);
+                    free(ini);
                     return NULL;
                 }
                 //printf("comment:%s", comment);
@@ -363,11 +368,13 @@ Ini *parse_ini(const char *filename){
                     }
                     free(ini->filename);
                     free_table(ini->sections);
+                    free(ini);
                     return NULL;
                 }
                 void *ret = ht_search(ini->sections, section);
                 if (ret != NULL){
                     printf("duplicate section error %s\n", section);
+                    fclose(file);
                     free(ret);
                     free(section);
                     if (current_section){
@@ -375,6 +382,7 @@ Ini *parse_ini(const char *filename){
                     }
                     free(ini->filename);
                     free_table(ini->sections);
+                    free(ini);
                     return NULL;
                 }
                 HashTable *section_table = create_table(CAPACITY);
@@ -388,8 +396,10 @@ Ini *parse_ini(const char *filename){
 
             default:{
                 if (current_section == NULL){
+                    fclose(file);
                     free(ini->filename);
                     free_table(ini->sections);
+                    free(ini);
                     return NULL;
                 }
 
@@ -399,6 +409,7 @@ Ini *parse_ini(const char *filename){
                 int val_len = 0;
                 int res = parse_key_val(file, &key_len, &val_len, &key, &val);
                 if (!res){
+                    fclose(file);
                     if (key){
                         free(key);
                     }
@@ -410,6 +421,7 @@ Ini *parse_ini(const char *filename){
                     }
                     free(ini->filename);
                     free_table(ini->sections);
+                    free(ini);
                     return NULL;
                 }
 
@@ -467,9 +479,4 @@ void test_ini_parser(const char *directory){
     }
 
     closedir(dir);
-}
-
-int main(int argc, char*argv[]){
-    test_ini_parser("./test_parser/");
-    return 0;
 }
