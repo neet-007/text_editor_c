@@ -6,6 +6,7 @@
 **Kilo** is a lightweight implementation of the Kilo text editor, based on the [Kilo tutorial](https://viewsourcecode.org/snaptoken/kilo/index.html). Currently, it includes:
 
 - A basic text editor.
+- Config File
 
 ## Build
 
@@ -33,13 +34,33 @@ To edit an existing file, use:
 ./kilo filename
 ```
 
+## Features Details
+
+### Configuration File
+
+The configuration file for the application is written in the INI format and is located at:
+
+`$HOME/.kilorc.ini` (Linux)
+
+#### Sections and Options
+
+##### `[editor]`
+This section defines settings related to the editor behavior. Below are the configurable options:
+
+| **Option**       | **Description**                               | **Type**        | **Values**                   |
+|-------------------|-----------------------------------------------|-----------------|------------------------------|
+| `indent`         | Defines the type of indentation to use.       | `"space"` or `"tab"` | `"space"`, `"tab"`          |
+| `indent_amount`  | Sets the number of spaces equivalent to a tab. | Integer         | Any positive integer         |
+| `line_numbers`   | Enables or disables line numbers in the editor. | `"true"` or `"false"` | `"true"`, `"false"`         |
+| `syntax`         | Enables or disables syntax highlighting.     | `"true"` or `"false"` | `"true"`, `"false"`         |
+| `quit_times`     | Specifies the number of attempts required to quit the editor when there are unsaved changes. | Integer         | Any positive integer         |
+
 ## Coming Features
 
 Planned features for future versions include:
 
 - **Auto Indent**: Automatically indent lines for better code formatting.
 - **Copy and Paste**: Support for clipboard operations.
-- **Config File**: Customize settings through a configuration file.
 - **Modal Editing**: Add modal editing similar to Vim.
 - **Multiple Buffers**: Allow editing multiple files simultaneously.
 
