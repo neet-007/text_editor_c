@@ -21,17 +21,137 @@ char *expand_path(const char *path) {
     }
 }
 
-int main(){
+HashTable *init_config(){
+    HashTable *config = create_table(CAPACITY);
+    if (config == NULL){
+        return NULL;
+    }
+
+    int tab = 8;
+    char *indent = "tabs";
+    bool line_numbers= "true";
+    bool syntax = "true";
+    ht_insert(config, "tab", &tab, sizeof(int), TYPE_INT);
+    ht_insert(config, "indent", indent, (sizeof(char) * strlen(indent)) + 1, TYPE_STR);
+    ht_insert(config, "line_numbers", &line_numbers, sizeof(_Bool), TYPE_BOOL);
+    ht_insert(config, "syntax", &syntax, sizeof(_Bool), TYPE_BOOL);
+
+    return config;
+}
+
+Ini *load_config(){
     char *expanded_config_path = expand_path("~/.kilorc.ini");
     if (expanded_config_path == NULL) {
-        return 1;
+        return NULL;
     }
 
     printf("Expanded Path: %s\n", expanded_config_path);
     Ini *config = parse_ini(expanded_config_path);
     printf("filename %s\n", config->filename);
-    print_table(config->sections, 0);
     free(expanded_config_path);
+    
+    return config;
+}
+
+int main(){
+    char *included[4] = {"tab", "indent", "line_numbers", "syntax"};
+
+    HashTable *editor_config = init_config();
+    if (editor_config == NULL){
+        return 1;
+    }
+    Ini *config = load_config();
+    if (config == NULL){
+        free_table(editor_config);
+        return 1;
+    }
+
+
+    print_table(editor_config, 0);
+    Ht_item *editor_section_item = ht_search(config->sections, "editor");
+    if (editor_section_item == NULL || editor_section_item->value_type != TYPE_HASH_TABLE){
+        free_table(editor_config);
+        free(config->filename);
+        free_table(config->sections);
+        free(config);
+        return 1;
+    }
+    
+    HashTable *editor_section = (HashTable *)editor_section_item->value;
+    for (int i = 0; i < 4; i++){
+        char *curr = included[i];
+
+        Ht_item *editor_item = ht_search(editor_config, curr);
+        if (editor_item== NULL){
+            printf("editor config failed included in hashmap\n");
+            free_table(editor_config);
+            free(config->filename);
+            free_table(config->sections);
+            free(config);
+            return 1;
+        }
+
+        Ht_item *curr_item = ht_search(editor_section, curr);
+        if (curr_item == NULL){
+            continue;
+        }
+
+        switch (editor_item->value_type) {
+            case TYPE_BOOL:{
+                if (strcmp((char *)curr_item->value, "true") == 0){
+                    bool true_ = true;
+                    ht_insert(editor_config, curr, &true_, sizeof(_Bool), TYPE_BOOL);
+                }else if (strcmp((char *)curr_item->value, "false") == 0){
+                    bool false_ = false;
+                    ht_insert(editor_config, curr, &false_, sizeof(_Bool), TYPE_BOOL);
+                }else{
+                    printf("invalid value for bool\n");
+                    continue;
+                }
+                break;
+            }
+            case TYPE_INT:{
+                char *endptr;
+                int base = 10;
+
+                long num = strtol(curr_item->value, &endptr, base);
+
+                if (*endptr != '\0') {
+                    printf("Invalid character found: %c\n", *endptr);
+                    continue;
+                } 
+                
+                ht_insert(editor_config, curr, &num, sizeof(long), TYPE_INT);
+                break;
+            } 
+            case TYPE_STR:{
+                if (i == 1){
+                    if (strcmp((char *)curr_item->value, "space") == 0){
+                        ht_insert(editor_config, curr, curr_item->value, curr_item->value_size, TYPE_STR);
+                        break;
+                    }
+                    if (strcmp((char *)curr_item->value, "tab") == 0){
+                        ht_insert(editor_config, curr, curr_item->value, curr_item->value_size, TYPE_STR);
+                        break;
+                    }
+
+                    printf("invalid value for %s\n", included[i]);
+                    continue;
+                }
+                ht_insert(editor_config, curr, curr_item->value, curr_item->value_size, TYPE_STR);
+                break;
+            }
+            case TYPE_HASH_TABLE:{
+                break;
+            }
+            default:{
+                break;
+            }
+        }
+    }
+    
+    print_table(editor_config, 0);
+    free_table(editor_config);
     free(config->filename);
     free_table(config->sections);
     free(config);

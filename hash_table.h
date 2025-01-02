@@ -2,8 +2,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 typedef enum {
+    TYPE_BOOL,
     TYPE_INT,
     TYPE_STR,
     TYPE_HASH_TABLE,
@@ -46,4 +48,5 @@ LinkedList** create_overflow_buckets(HashTable* table);
 void free_overflow_buckets(HashTable* table);
 void ht_delete(HashTable* table, char* key);
 
+void print_item(Ht_item *item);
 void print_table(HashTable *table, int indent);

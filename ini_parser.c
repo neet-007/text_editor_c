@@ -426,7 +426,7 @@ Ini *parse_ini(const char *filename){
                     return NULL;
                 }
 
-                ht_insert(current_section, key, val, val_len, TYPE_STR);
+                ht_insert(current_section, key, val, val_len + 1 , TYPE_STR);
                 if (key != NULL){
                     free(key);
                 }

@@ -1,5 +1,4 @@
 #include "hash_table.h"
-#include <stdio.h>
 
 unsigned long djb2(const char *str) {
     unsigned long hash = 5381;
@@ -148,6 +147,10 @@ HashTable *create_table(int size) {
 
 void free_item(Ht_item *item) {
     switch (item->value_type) {
+        case TYPE_BOOL:{
+            free((bool *)item->value);
+            break;
+        }
         case TYPE_INT:
             free((int *)item->value);
             break;
@@ -198,13 +201,13 @@ void handle_collision(HashTable *table, unsigned long index, Ht_item *item) {
 }
 
 void ht_insert(HashTable *table, char *key, void *value, size_t value_size, ValueType value_type) {
-    Ht_item *item = create_item(key, value, value_size, value_type);
 
     int index = hash_function(key);
 
     Ht_item *current_item = table->items[index];
 
     if (current_item == NULL) {
+        Ht_item *item = create_item(key, value, value_size, value_type);
         if (table->count == table->size) {
             printf("Insert Error: Hash Table is full\n");
             free_item(item);
@@ -216,10 +219,23 @@ void ht_insert(HashTable *table, char *key, void *value, size_t value_size, Valu
     }
     else {
         if (strcmp(current_item->key, key) == 0) {
+            if (table->items[index]->value_size < value_size){
+                free(table->items[index]->value);
+
+                table->items[index]->value = malloc(value_size);
+                if (table->items[index]->value == NULL) {
+                    fprintf(stderr, "Memory allocation failed\n");
+                    return;
+                }
+            }
             memcpy(table->items[index]->value, value, value_size);
+            table->items[index]->value_size = value_size;
+            table->items[index]->value_type = value_type;
             return;
         }
         else {
+            // TODO: FIX ME
+            Ht_item *item = create_item(key, value, value_size, value_type);
             handle_collision(table, index, item);
             return;
         }
@@ -300,6 +316,32 @@ void ht_delete(HashTable *table, char *key) {
     }
 }
 
+void print_item(Ht_item *item){
+    switch (item->value_type) {
+        case TYPE_BOOL:{
+            printf("key %s val %d\n", item->key, (*(bool *)item->value));
+            break;
+        }
+        case TYPE_INT:{
+            printf("key %s val %d\n", item->key, (*(int *)item->value));
+            break;
+        }
+        case TYPE_STR:{
+            printf("key item %s val %s\n", item->key, (char *)item->value);
+            break;
+        }
+        case TYPE_HASH_TABLE:{
+            printf("key %s val \n", item->key);
+            print_table((HashTable *)item->value, 0);
+            break;
+        }
+        default:{
+            printf("unknown type\n");
+            break;
+        }
+    }
+}
+
 void print_table(HashTable *table, int indent) {
     char *indent_str = malloc((sizeof(char) * indent) + 1);
     if (indent_str == NULL){
@@ -316,24 +358,7 @@ void print_table(HashTable *table, int indent) {
 
     for (int i = 0; i < table -> size; i++) {
         if (table -> items[i]) {
-            switch (table->items[i]->value_type) {
-                case TYPE_INT:{
-                    printf("%sIndex:%d, Key:%s, Value:%d\n", indent_str, i, table -> items[i] -> key,(*(int *)table -> items[i] -> value));
-                    break;
-                }
-                case TYPE_STR:{
-                    printf("%sIndex:%d, Key:%s, Value:%s\n", indent_str, i, table -> items[i] -> key,(char *)table -> items[i] -> value);
-                    break;
-                }
-                case TYPE_HASH_TABLE:{
-                    print_table((HashTable *)table->items[i]->value, indent + 4);
-                    break;
-                }
-                default:{
-                    printf("unknown type\n");
-                    break;
-                }
-            }
+            print_item(table->items[i]);
         }
     }
 
