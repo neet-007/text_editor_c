@@ -75,48 +75,7 @@ enum editorHighlight {
 #define HL_HIGHLIGHT_STRINGS (1<<1)
 
 /*** data ***/
-/*
-struct editorSyntax {
-    char *filetype;
-    char **filematch;
-    char **keywords;
-    char *singleline_comment_start;
-    char *multiline_comment_start;
-    char *multiline_comment_end;
-    int flags;
-};
 
-typedef struct erow{
-    int idx;
-    int size;
-    int rsize;
-    char *chars;
-    char *render;
-    unsigned char *hl;
-    int hl_open_comment;
-}erow;
-
-typedef struct editorConfig{
-    int os_type;
-    int cx, cy;
-    int rowoff, coloff;
-    int rx;
-    int screenrows;
-    int screencols;
-    int numrows;
-    int indent_amount;
-    int quit_times;
-    bool line_numbers;
-    bool syntax_flag;
-    erow *row;
-    int dirty;
-    char *filename;
-    char statusmsg[80];
-    time_t statusmsg_time;
-    struct editorSyntax *syntax;
-    struct termios orig_termios;
-} editorConfig;
-*/
 struct editorConfig E;
 
 /*** filetypes ***/
@@ -195,6 +154,19 @@ void debug(const char *key, const char *fmt, ...) {
     if (close(fd) == -1) {
         die("Failed to close the file");
     }
+}
+
+char *tabs_to_spaces(int tabs_count){
+    char *spaces = malloc(sizeof(char) * tabs_count);
+    if (spaces == NULL){
+        return NULL;
+    }
+
+    for (int i = 0; i < tabs_count; i++){
+        spaces[i] = SPACE;
+    }
+
+    return spaces;
 }
 
 /*** terminal ***/
@@ -691,7 +663,13 @@ void editorInsertChar(int c){
     if (E.cy == E.numrows){
         editorInsertRow(E.numrows, "", 0);
     }
-    editorRowInsertChar(&E.row[E.cy], E.cx++, c);
+    if (E.indent == SPACE && c == '\t'){
+        for (int i = 0; i < E.indent_amount; i++){
+            editorRowInsertChar(&E.row[E.cy], E.cx++, SPACE);
+        }
+    }else{
+        editorRowInsertChar(&E.row[E.cy], E.cx++, c);
+    }
 }
 
 int editorCountIndent(erow *row){
