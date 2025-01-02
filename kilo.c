@@ -1,5 +1,6 @@
 /*** includes ***/
 
+#include <stdbool.h>
 #define _DEFAULT_SOURCE
 #define _BSD_SOURCE
 #define _GNU_SOURCE
@@ -19,6 +20,7 @@
 #include <unistd.h>
 #include <fcntl.h> 
 #include <sys/utsname.h>
+#include "editor_config.h"
 
 /*** defines ***/
 #define KILO_VERSION "0.0.1"
@@ -74,7 +76,7 @@ enum editorHighlight {
 #define HL_HIGHLIGHT_STRINGS (1<<1)
 
 /*** data ***/
-
+/*
 struct editorSyntax {
     char *filetype;
     char **filematch;
@@ -95,7 +97,7 @@ typedef struct erow{
     int hl_open_comment;
 }erow;
 
-struct editorConfig{
+typedef struct editorConfig{
     int os_type;
     int cx, cy;
     int rowoff, coloff;
@@ -103,6 +105,10 @@ struct editorConfig{
     int screenrows;
     int screencols;
     int numrows;
+    int indent_amount;
+    int quit_times;
+    bool line_numbers;
+    bool syntax_flag;
     erow *row;
     int dirty;
     char *filename;
@@ -110,8 +116,8 @@ struct editorConfig{
     time_t statusmsg_time;
     struct editorSyntax *syntax;
     struct termios orig_termios;
-};
-
+} editorConfig;
+*/
 struct editorConfig E;
 
 /*** filetypes ***/
@@ -506,7 +512,7 @@ int editorSyntaxToColor(int hl){
 
 void editorSelectSyntaxHighlight() {
     E.syntax = NULL;
-    if (E.filename == NULL){
+    if (E.filename == NULL || !E.syntax_flag){
         return;
     }
 
@@ -1012,7 +1018,7 @@ void editorDrawRows(struct abuf *ab){
                 }
                 abAppend(ab, welcome, welcomelen);
             }else{
-                abAppend(ab, "~", 3);
+                abAppend(ab, "~", 1);
             }
         }else{
             int len = E.row[filerow].rsize - E.coloff;
@@ -1331,6 +1337,7 @@ void initEditor(){
         die("getWindowSize");
     }
     E.screenrows -= 2;
+    init_kilo_config(&E);
 }
 
 int main(int argc, char *argv[]){

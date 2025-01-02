@@ -1,4 +1,4 @@
-#include "ini_parser.h"
+#include "editor_config.h"
 
 char *expand_path(const char *path) {
     if (path[0] == '~') {
@@ -27,14 +27,16 @@ HashTable *init_config(){
         return NULL;
     }
 
-    int tab = 8;
+    int indent_amount = 8;
     char *indent = "tabs";
     bool line_numbers= "true";
     bool syntax = "true";
-    ht_insert(config, "tab", &tab, sizeof(int), TYPE_INT);
+    int quit_times = 3;
+    ht_insert(config, "indent_amount", &indent_amount, sizeof(int), TYPE_INT);
     ht_insert(config, "indent", indent, (sizeof(char) * strlen(indent)) + 1, TYPE_STR);
     ht_insert(config, "line_numbers", &line_numbers, sizeof(_Bool), TYPE_BOOL);
     ht_insert(config, "syntax", &syntax, sizeof(_Bool), TYPE_BOOL);
+    ht_insert(config, "quit_times", &quit_times, sizeof(int), TYPE_INT);
 
     return config;
 }
@@ -53,17 +55,17 @@ Ini *load_config(){
     return config;
 }
 
-int main(){
-    char *included[4] = {"tab", "indent", "line_numbers", "syntax"};
+int init_kilo_config(editorConfig* kilo_config){
+    char *included[5] = {"indent_amount", "indent", "line_numbers", "syntax", "quit_times"};
 
     HashTable *editor_config = init_config();
     if (editor_config == NULL){
-        return 1;
+        return 0;
     }
     Ini *config = load_config();
     if (config == NULL){
         free_table(editor_config);
-        return 1;
+        return 0;
     }
 
 
@@ -74,11 +76,11 @@ int main(){
         free(config->filename);
         free_table(config->sections);
         free(config);
-        return 1;
+        return 0;
     }
     
     HashTable *editor_section = (HashTable *)editor_section_item->value;
-    for (int i = 0; i < 4; i++){
+    for (int i = 0; i < 5; i++){
         char *curr = included[i];
 
         Ht_item *editor_item = ht_search(editor_config, curr);
@@ -88,7 +90,7 @@ int main(){
             free(config->filename);
             free_table(config->sections);
             free(config);
-            return 1;
+            return 0;
         }
 
         Ht_item *curr_item = ht_search(editor_section, curr);
@@ -150,9 +152,38 @@ int main(){
         }
     }
     
-    print_table(editor_config, 0);
+    for (int i = 0; i < 5; i++){
+        Ht_item* editor_item = ht_search(editor_config, included[i]);
+        switch (i) {
+            case 0:{
+                kilo_config->indent_amount = (*(int *)editor_item->value);
+                break;
+            }
+            case 1:{
+                break;
+            }
+            case 2:{
+                kilo_config->line_numbers = (*(bool *)editor_item->value);
+                break;
+            }
+            case 3:{
+                kilo_config->syntax_flag = (*(bool *)editor_item->value);
+                break;
+            }
+            case 4:{
+                kilo_config->quit_times = (*(int *)editor_item->value);
+                break;
+            }
+            default:{
+                break;
+            }
+        }
+    }
     free_table(editor_config);
     free(config->filename);
     free_table(config->sections);
     free(config);
+
+    return 1;
 }
+
