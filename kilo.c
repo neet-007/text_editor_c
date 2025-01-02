@@ -24,7 +24,6 @@
 
 /*** defines ***/
 #define KILO_VERSION "0.0.1"
-#define KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 
 #define CTRL_KEY(k) ((k) & 0x1f)
@@ -544,7 +543,7 @@ int editorRowCxToRx(erow *row, int cx) {
     int j;
     for (j = 0; j < cx; j++) {
         if (row->chars[j] == '\t'){
-            rx += (KILO_TAB_STOP - 1) - (rx % KILO_TAB_STOP);
+            rx += (E.indent_amount - 1) - (rx % E.indent_amount);
         }
         rx++;
     }
@@ -557,7 +556,7 @@ int editorRowRxToCx(erow *row, int rx){
 
     for (cx = 0; cx < row->size; cx++){
         if (row->chars[cx] == '\t'){
-            cur_rx += (KILO_TAB_STOP - 1) - (cur_rx % KILO_TAB_STOP);
+            cur_rx += (E.indent_amount - 1) - (cur_rx % E.indent_amount);
         }
         cur_rx++;
     }
@@ -579,13 +578,13 @@ void editorUpdateRow(erow *row){
     }
 
     free(row->render);
-    row->render = malloc(row->size + tabs*(KILO_TAB_STOP - 1) + 1);
+    row->render = malloc(row->size + tabs*(E.indent_amount - 1) + 1);
 
     int idx = 0;
     for (j = 0; j < row->size; j++){
         if (row->chars[j] == '\t') {
             row->render[idx++] = ' ';
-            while (idx % KILO_TAB_STOP != 0) row->render[idx++] = ' ';
+            while (idx % E.indent_amount != 0) row->render[idx++] = ' ';
         } else {
             row->render[idx++] = row->chars[j];
         }
@@ -698,7 +697,7 @@ void editorInsertChar(int c){
 int editorCountIndent(erow *row){
     int count = 0;
     for (int i = 0; i < row->size; i++){
-        if (row->chars[i] != '\t'){
+        if (row->chars[i] != E.indent){
             return count;
         }
         count++;
@@ -720,7 +719,7 @@ void editorInsertNewline(){
 
             int i;
             for (i = 0; i < indent_count; i++) {
-                buf[i] = '\t';
+                buf[i] = E.indent;
             }
             
             buf[i] = '\0';
@@ -1338,6 +1337,7 @@ void initEditor(){
     }
     E.screenrows -= 2;
     init_kilo_config(&E);
+    debug("indet", "%d", E.indent);
 }
 
 int main(int argc, char *argv[]){

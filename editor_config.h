@@ -22,6 +22,11 @@ typedef struct erow{
     int hl_open_comment;
 }erow;
 
+typedef enum Indent{
+    TAB=9,
+    SPACE=32,
+}Indent;
+
 typedef struct editorConfig{
     int os_type;
     int cx, cy;
@@ -30,8 +35,9 @@ typedef struct editorConfig{
     int screenrows;
     int screencols;
     int numrows;
-    int indent_amount;
     int quit_times;
+    int indent_amount;
+    Indent indent;
     bool line_numbers;
     bool syntax_flag;
     erow *row;

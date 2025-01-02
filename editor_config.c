@@ -160,6 +160,12 @@ int init_kilo_config(editorConfig* kilo_config){
                 break;
             }
             case 1:{
+                if (strcmp((char *)editor_item->value, "space") == 0){
+                    kilo_config->indent = SPACE;
+                }
+                if (strcmp((char *)editor_item->value, "tab") == 0){
+                    kilo_config->indent = TAB;
+                }
                 break;
             }
             case 2:{
