@@ -1,29 +1,30 @@
 #include "ini_parser.h"
-#include <stdio.h>
 
 int valid_char(char c){
     return (isalnum(c) || c == '_' || c == '-' || c == ' ' || c == '\t' || c == ':' || c == '.');
 }
 
 char *strip_str(char *s) {
-    size_t size;
+    size_t size = strlen(s);
     char *end;
 
-    size = strlen(s);
-
-    if (!size){
+    if (size == 0) {
         return s;
     }
 
     end = s + size - 1;
-    while (end >= s && isspace(*end)){
+    while (end >= s && isspace((unsigned char)*end)) {
         end--;
     }
     *(end + 1) = '\0';
 
-    while (*s && isspace(*s)){
+    char *start = s;
+    while (*start && isspace((unsigned char)*start)) {
+        start++;
+    }
 
-        s++;
+    if (start != s) {
+        memmove(s, start, strlen(start) + 1);
     }
 
     return s;
@@ -426,10 +427,10 @@ Ini *parse_ini(const char *filename){
                 }
 
                 ht_insert(current_section, key, val, val_len, TYPE_STR);
-                if (key){
+                if (key != NULL){
                     free(key);
                 }
-                if (val){
+                if (val != NULL){
                     free(val);
                 }
                 break;
@@ -456,7 +457,7 @@ void test_ini_parser(const char *directory){
     printf("INI files in directory %s:\n", directory);
     while ((entry = readdir(dir)) != NULL) {
         const char *name = entry->d_name;
-        const char *ext = strrchr(name, '.'); // Find the last '.'
+        const char *ext = strrchr(name, '.');
 
         if (ext && strcmp(ext, ".ini") == 0) {
             printf("- %s\n", name);
@@ -471,7 +472,6 @@ void test_ini_parser(const char *directory){
             }
 
             printf("filename %s\n", ini->filename);
-            //print_table(ini->sections, 0);
             free(ini->filename);
             free_table(ini->sections);
             free(ini);
