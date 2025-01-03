@@ -6,7 +6,8 @@
 **Kilo** is a lightweight implementation of the Kilo text editor, based on the [Kilo tutorial](https://viewsourcecode.org/snaptoken/kilo/index.html). Currently, it includes:
 
 - A basic text editor.
-- Config File
+- Config File: an ini file that holds some of the editor configuration.
+- Auto Indent: Automatically indent lines for better code formatting it only indents with the same amout as previous line.
 
 ## Build
 
@@ -59,7 +60,6 @@ This section defines settings related to the editor behavior. Below are the conf
 
 Planned features for future versions include:
 
-- **Auto Indent**: Automatically indent lines for better code formatting.
 - **Copy and Paste**: Support for clipboard operations.
 - **Modal Editing**: Add modal editing similar to Vim.
 - **Multiple Buffers**: Allow editing multiple files simultaneously.
