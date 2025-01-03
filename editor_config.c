@@ -178,6 +178,7 @@ int init_kilo_config(editorConfig* kilo_config){
             }
             case 4:{
                 kilo_config->quit_times = (*(int *)editor_item->value);
+                kilo_config->quit_times_curr = (*(int *)editor_item->value);
                 break;
             }
             default:{

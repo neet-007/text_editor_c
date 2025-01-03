@@ -36,6 +36,7 @@ typedef struct editorConfig{
     int screencols;
     int numrows;
     int quit_times;
+    int quit_times_curr;
     int indent_amount;
     Indent indent;
     bool line_numbers;

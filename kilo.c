@@ -169,6 +169,10 @@ char *tabs_to_spaces(int tabs_count){
     return spaces;
 }
 
+int max(int a, int b){
+    return a > b ? a : b;
+}
+
 /*** terminal ***/
 
 void disableRawMode(){
@@ -1049,7 +1053,7 @@ void editorDrawStatusBar(struct abuf *ab){
     abAppend(ab, "\x1b[7m", 4);
     char status[80], rstatus[80];
     int len = snprintf(status, sizeof(status), "%.20s - %d lines %s", E.filename ? E.filename : "[No Name]", E.numrows, E.dirty ? "(modified)" : "");
-    int rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d", E.syntax ? E.syntax->filetype : "no ft", E.cy + 1, E.numrows);
+    int rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d:%d", E.syntax ? E.syntax->filetype : "no ft", E.cy + 1, E.numrows, E.cx + 1);
     if (len > E.screencols) {
         len = E.screencols;
     }
@@ -1150,7 +1154,7 @@ char *editorPrompt(char *prompt, void (*callback)(char *, int)) {
 }
 
 void editorMoveCursor(int key){
-    erow *row = (E.cy > E.numrows) ? NULL : &E.row[E.cy];
+    erow *row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
 
     switch (key) {
         case ARROW_UP:{
@@ -1184,24 +1188,22 @@ void editorMoveCursor(int key){
         }
     }
 
-    row = (E.cy > E.numrows) ? NULL : &E.row[E.cy];
+    row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
     int rowlen = row ? row->size : 0;
-    if (E.cx >= rowlen){
+    if (E.cx > rowlen){
         E.cx = rowlen;
     }
 }
 
 void editorProccessKeyPress(){
-    static int quit_times = KILO_QUIT_TIMES;
-
     int c = editorReadKey();
 
     switch (c) {
         case CTRL_KEY('q'):{
-            if (E.dirty && quit_times > 0) {
+            if (E.dirty && E.quit_times_curr > 0) {
                 editorSetStatusMessage("WARNING!!! File has unsaved changes. "
-                                       "Press Ctrl-Q %d more times to quit.", quit_times);
-                quit_times--;
+                                       "Press Ctrl-Q %d more times to quit.", E.quit_times_curr);
+                E.quit_times_curr--;
                 return;
             }
             write(STDOUT_FILENO, "\x1b[2J", 4);
@@ -1292,13 +1294,14 @@ void editorProccessKeyPress(){
         }
     }
 
-    quit_times = KILO_QUIT_TIMES;
+    E.quit_times_curr = E.quit_times;
 }
 
 /*** init ***/
 
 void initEditor(){
     E.cx = E.cy = E.numrows = E.rowoff = E.coloff = E.rx = E.dirty = 0;
+    E.quit_times = E.quit_times_curr = 3;
     E.row = NULL;
     E.filename = NULL;
     E.syntax = NULL;
@@ -1315,7 +1318,6 @@ void initEditor(){
     }
     E.screenrows -= 2;
     init_kilo_config(&E);
-    debug("indet", "%d", E.indent);
 }
 
 int main(int argc, char *argv[]){
