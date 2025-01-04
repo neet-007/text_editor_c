@@ -27,6 +27,14 @@ typedef enum Indent{
     SPACE=32,
 }Indent;
 
+typedef enum Mode{
+    NORMAL,
+    INSERT,
+    VISUAL,
+}Mode ;
+
+typedef void (*ModeFn)(int c);
+
 typedef struct editorConfig{
     int os_type;
     int cx, cy;
@@ -40,6 +48,7 @@ typedef struct editorConfig{
     int quit_times_curr;
     int indent_amount;
     Indent indent;
+    Mode mode;
     bool line_numbers;
     bool syntax_flag;
     erow *row;
@@ -49,6 +58,7 @@ typedef struct editorConfig{
     time_t statusmsg_time;
     struct editorSyntax *syntax;
     struct termios orig_termios;
+    ModeFn mode_functions[3];
 } editorConfig;
 
 int init_kilo_config(editorConfig* kilo_config);

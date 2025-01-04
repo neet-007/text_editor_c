@@ -117,6 +117,14 @@ void die(const char *s){
     exit(1);
 }
 
+void enableMouse() {
+    write(STDOUT_FILENO, "\033[?1003h", 8);
+}
+
+void disableMouse() {
+    write(STDOUT_FILENO, "\033[?1003l", 8);
+}
+
 /*** debug ***/
 
 void debug(const char *key, const char *fmt, ...) {
@@ -202,6 +210,7 @@ int editor_cx_to_index(){
 /*** terminal ***/
 
 void disableRawMode(){
+    disableMouse();
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios) == -1){
         die("tcsetattr");
     }
@@ -310,7 +319,30 @@ int editorReadKey(){
         }
 
         return '\x1b';
-    }else{
+    }else if (c == '\033'){
+        char s[5];
+    
+        debug("here", "");
+        if (read(STDIN_FILENO, &s[0], 1) != 1){
+            return c;
+        }
+        if (read(STDIN_FILENO, &s[1], 1) != 1){
+            return c;
+        }
+
+        if (s[0] == '['){
+            if (s[1] == 'M'){
+                int event = s[2] - 32;
+                int x = s[3] - 32;   
+                int y = s[4] - 32;  
+
+                debug("Mouse event", "Button %d at position (%d, %d)\n", event, x, y);
+            }
+        }
+
+        return c;
+        
+    } else{
         return c;
     }
 
@@ -1108,8 +1140,27 @@ void editorDrawRows(struct abuf *ab){
 
 void editorDrawStatusBar(struct abuf *ab){
     abAppend(ab, "\x1b[7m", 4);
-    char status[80], rstatus[80];
-    int len = snprintf(status, sizeof(status), "%.20s - %d lines %s", E.filename ? E.filename : "[No Name]", E.numrows, E.dirty ? "(modified)" : "");
+    char status[87], rstatus[80];
+    char mode[7];
+    switch (E.mode) {
+        case NORMAL:{
+            snprintf(mode, sizeof(mode), "%s", "Normal");
+            break;
+        }
+        case INSERT:{
+            snprintf(mode, sizeof(mode), "%s", "Insert");
+            break;
+        }
+        case VISUAL:{
+            snprintf(mode, sizeof(mode), "%s", "Visual");
+            break;
+        }
+        default:{
+            die("invalid mode");
+        }
+    }
+    int len = snprintf(status, sizeof(status), "%.20s - %d lines %s %s", E.filename ? E.filename : "[No Name]", E.numrows, E.dirty ? "(modified)" : "",
+                       mode);
     int rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d:%d", E.syntax ? E.syntax->filetype : "no ft", E.cy + 1, E.numrows, editor_cx_to_index() + 1);
     if (len > E.screencols) {
         len = E.screencols;
@@ -1252,9 +1303,152 @@ void editorMoveCursor(int key){
     }
 }
 
-void editorProccessKeyPress(){
-    int c = editorReadKey();
+void mode_function_normal(int c){
+    switch (c) {
+        case CTRL_KEY('q'):{
+            if (E.dirty && E.quit_times_curr > 0) {
+                editorSetStatusMessage("WARNING!!! File has unsaved changes. "
+                                       "Press Ctrl-Q %d more times to quit.", E.quit_times_curr);
+                E.quit_times_curr--;
+                return;
+            }
+            write(STDOUT_FILENO, "\x1b[2J", 4);
+            write(STDOUT_FILENO, "\x1b[H", 3);
+            exit(0);
+            break;
+        }
 
+        case '\r':{
+            editorMoveCursor(ARROW_DOWN);
+            break;
+        }
+
+        case 'i':{
+            E.mode = INSERT;
+            break;
+        }
+
+        case 'v':{
+            E.mode = VISUAL;
+            break;
+        }
+
+        case 'j':{
+            editorMoveCursor(ARROW_DOWN);
+            break;
+        }
+
+        case 'k':{
+            editorMoveCursor(ARROW_UP);
+            break;
+        }
+
+        case 'h':{
+            editorMoveCursor(ARROW_LEFT);
+            break;
+        }
+        
+        case 'l':{
+            editorMoveCursor(ARROW_RIGHT);
+            break;
+        }
+
+        case 'o':{
+            editorInsertNewline();
+            E.mode = INSERT;
+            break;
+        }
+
+        case BACKSPACE:
+        case DEL_KEY:
+        case CTRL_KEY('h'):{
+            editorMoveCursor(ARROW_RIGHT);
+            break;
+        }
+
+        case CTRL_KEY('s'):{
+            editorSave();
+            break;
+        }
+
+        case CTRL_KEY('l'):
+        case '\x1b':{
+            break;
+        }
+
+        case '/':
+            editorFind();
+            break;
+
+        case HOME_KEY:{
+            E.cx = E.last_row_digits;
+            break;
+        }
+        case END_KEY:{
+            if (E.cy < E.numrows){
+                E.cx = max(E.row[E.cy].size, E.last_row_digits);
+            }
+            break;
+        }
+
+        case PAGE_UP:
+        case PAGE_DOWN:{
+            if (c == PAGE_UP) {
+                E.cy = E.rowoff;
+            } else if (c == PAGE_DOWN) {
+                E.cy = E.rowoff + E.screenrows - 1;
+                if (E.cy > E.numrows){
+                    E.cy = E.numrows;
+                }
+            }
+
+            {
+                int times = E.screenrows;
+                while (times--)
+                    editorMoveCursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
+            }
+            break;
+        }
+
+        case ARROW_UP:
+        case ARROW_DOWN:
+        case ARROW_LEFT:
+        case ARROW_RIGHT:{
+            editorMoveCursor(c);
+            break;
+        }
+
+        case 'u':{
+            // TODO: undo
+            break;
+        }
+
+        case CTRL_KEY('r'):{
+            // TODO: redo
+            break;
+        }
+
+        case 'y':{
+            // TODO: copy
+            editorCopy("Hello, Clipboard!");
+            break;
+        }
+
+        case 'p':{
+            // TODO: paste
+            editorPaste();
+            break;
+        }
+
+        default:{
+            break;
+        }
+    }
+
+    E.quit_times_curr = E.quit_times;
+}
+
+void mode_function_insert(int c){
     switch (c) {
         case CTRL_KEY('q'):{
             if (E.dirty && E.quit_times_curr > 0) {
@@ -1301,6 +1495,7 @@ void editorProccessKeyPress(){
 
         case CTRL_KEY('l'):
         case '\x1b':{
+            E.mode = NORMAL;
             break;
         }
 
@@ -1354,16 +1549,40 @@ void editorProccessKeyPress(){
     E.quit_times_curr = E.quit_times;
 }
 
+void mode_function_visual(int c){
+    switch (c) {
+        case CTRL_KEY('l'):
+        case '\x1b':{
+            E.mode = NORMAL;
+            break;
+        }
+
+        default:{
+            break;
+        }
+    }
+}
+
+void editorProccessKeyPress(){
+    int c = editorReadKey();
+    
+    return E.mode_functions[E.mode](c);
+}
+
 /*** init ***/
 
 void initEditor(){
     E.cx = E.cy = E.numrows = E.rowoff = E.coloff = E.rx = E.dirty = E.last_row_digits = 0;
     E.quit_times = E.quit_times_curr = 3;
+    E.mode = NORMAL;
     E.row = NULL;
     E.filename = NULL;
     E.syntax = NULL;
     E.statusmsg[0] = '\0';
     E.statusmsg_time = 0;
+    E.mode_functions[NORMAL] = mode_function_normal;
+    E.mode_functions[INSERT] = mode_function_insert;
+    E.mode_functions[VISUAL] = mode_function_visual;
 
     int os = detect_os();
     if (os == 0){
@@ -1379,6 +1598,7 @@ void initEditor(){
 
 int main(int argc, char *argv[]){
     enableRawMode();
+    //enableMouse();
     initEditor();
     if (argc > 1){
         editorOpen(argv[1]);
