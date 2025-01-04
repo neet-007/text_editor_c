@@ -564,10 +564,10 @@ int editorRowRxToCx(erow *row, int rx){
     }
 
     if (cur_rx > rx){
-        return cx;
+        return cx + E.last_row_digits;
     }
 
-    return cx;
+    return cx + E.last_row_digits;
 }
 
 void editorUpdateRow(erow *row){
