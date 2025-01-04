@@ -100,10 +100,16 @@ struct editorSyntax HLDB[] = {
 
 /*** prototypes ***/
 
+struct abuf{
+    char *b;
+    int len;
+};
+
 void editorSetStatusMessage(const char *fmt, ...);
 void editorRefreshScreen();
 char *editorPrompt(char *prompt, void (*callback)(char *, int));
-
+void abAppend(struct abuf *ab, const char *s, int len);
+    
 void die(const char *s){
     write(STDOUT_FILENO, "\x1b[2J", 4);
     write(STDOUT_FILENO, "\x1b[H", 3);
@@ -171,6 +177,26 @@ char *tabs_to_spaces(int tabs_count){
 
 int max(int a, int b){
     return a > b ? a : b;
+}
+
+int count_digits(int num) {
+    if (num == 0){
+        return 1;
+    }
+    int count = 0;
+    if (num < 0){
+        num = -num;
+    }
+
+    while (num != 0) {
+        num /= 10;
+        count++;
+    }
+    return count;
+}
+
+int editor_cx_to_index(){
+    return E.cx - E.last_row_digits;
 }
 
 /*** terminal ***/
@@ -604,6 +630,7 @@ void editorInsertRow(int at, char *s, size_t len){
     editorUpdateRow(&E.row[at]);
 
     E.numrows++;
+    E.last_row_digits = count_digits(E.numrows) + 1;
     E.dirty++;
 }
 
@@ -626,6 +653,7 @@ void editorDelRow(int at){
     }
 
     E.numrows--;
+    E.last_row_digits = count_digits(E.numrows) + 1;
     E.dirty++;
 }
 
@@ -669,10 +697,12 @@ void editorInsertChar(int c){
     }
     if (E.indent == SPACE && c == '\t'){
         for (int i = 0; i < E.indent_amount; i++){
-            editorRowInsertChar(&E.row[E.cy], E.cx++, SPACE);
+            editorRowInsertChar(&E.row[E.cy], editor_cx_to_index(), SPACE);
+            E.cx++;
         }
     }else{
-        editorRowInsertChar(&E.row[E.cy], E.cx++, c);
+        editorRowInsertChar(&E.row[E.cy], editor_cx_to_index(), c);
+        E.cx++;
     }
 }
 
@@ -689,15 +719,15 @@ int editorCountIndent(erow *row){
 }
 
 void editorInsertNewline(){
-    if (E.cx == 0){
+    if (E.cx == E.last_row_digits){
         editorInsertRow(E.cy, "", 0);
         E.cy++;
-        E.cx = 0;
+        E.cx = E.last_row_digits;
     }else{
         erow *row = &E.row[E.cy];
         int indent_count = editorCountIndent(row);
         if (indent_count > 0){
-            char *buf = malloc(sizeof(char) * (indent_count + row->size - E.cx + 1));
+            char *buf = malloc(sizeof(char) * (indent_count + row->size - editor_cx_to_index() + 1));
 
             int i;
             for (i = 0; i < indent_count; i++) {
@@ -706,30 +736,31 @@ void editorInsertNewline(){
             
             buf[i] = '\0';
             
-            strcat(buf, &row->chars[E.cx]);
-            editorInsertRow(E.cy + 1, buf, indent_count + row->size - E.cx);
+            strcat(buf, &row->chars[editor_cx_to_index()]);
+            editorInsertRow(E.cy + 1, buf, indent_count + row->size - editor_cx_to_index());
         }else {
-            editorInsertRow(E.cy + 1, &row->chars[E.cx], row->size - E.cx);
+            editorInsertRow(E.cy + 1, &row->chars[editor_cx_to_index()], row->size - editor_cx_to_index());
         }
         row = &E.row[E.cy];
-        row->size = E.cx;
+        row->size = editor_cx_to_index();
         row->chars[row->size] = '\0';
         E.cy++;
-        E.cx = indent_count;
+        E.cx = max(indent_count, E.last_row_digits);
         editorUpdateRow(row);
     }
 }
 
 void editorDelChar(){
-    if (E.cy == E.numrows || (E.cx == 0 && E.cy == 0)){
+    if (E.cy == E.numrows || (E.cx == E.last_row_digits && E.cy == 0)){
         return;
     }
 
     erow *row = &E.row[E.cy];
-    if (E.cx > 0){
-        editorRowDelChar(row, --E.cx);
+    if (E.cx > E.last_row_digits){
+        E.cx = max(E.cx - 1, E.last_row_digits);
+        editorRowDelChar(row, editor_cx_to_index());
     }else{
-        E.cx = E.row[E.cy - 1].size;
+        E.cx = E.row[E.cy - 1].size + E.last_row_digits;
         editorRowAppendString(&E.row[E.cy - 1], row->chars, row->size);
         editorDelRow(E.cy);
         E.cy--;
@@ -923,7 +954,7 @@ void editorFind(){
     if (query){
         free(query);
     }else{
-        E.cx = saved_cx;
+        E.cx = max(saved_cx, E.last_row_digits);
         E.cy = saved_cy;
         E.coloff = saved_coloff;
         E.rowoff = saved_rowoff;
@@ -931,11 +962,6 @@ void editorFind(){
 }
 
 /*** append buffer ***/
-
-struct abuf{
-    char *b;
-    int len;
-};
 
 #define ABUF_INIT {NULL, 0}
 
@@ -978,6 +1004,8 @@ void editorScroll() {
 }
 
 void editorDrawRows(struct abuf *ab){
+    /*
+     * */
     int y;
     for (y = 0; y < E.screenrows; y++){
         int filerow = y + E.rowoff;
@@ -1002,6 +1030,27 @@ void editorDrawRows(struct abuf *ab){
                 abAppend(ab, "~", 1);
             }
         }else{
+            int curr = count_digits(E.row[filerow].idx + 1);
+            char *index = malloc(sizeof(char) * curr + 1);
+            if (index == NULL){
+                die("draw rows");
+            }
+            index[curr] = '\0';
+            snprintf(index, curr + 1, "%d", E.row[filerow].idx + 1); 
+            abAppend(ab, index, curr);
+            free(index);
+            char *ws = malloc((sizeof(char) * (E.last_row_digits - curr)) + 1);
+            if (ws == NULL){
+                die("draw rows");
+            }
+            int t = 0;
+            while(curr + t < E.last_row_digits){
+                ws[t++] = ' ';
+            }
+            ws[t] = '\0';
+            abAppend(ab, ws, E.last_row_digits - curr + 1);
+            free(ws);
+
             int len = E.row[filerow].rsize - E.coloff;
             if (len < 0) {
                 len = 0;
@@ -1053,7 +1102,7 @@ void editorDrawStatusBar(struct abuf *ab){
     abAppend(ab, "\x1b[7m", 4);
     char status[80], rstatus[80];
     int len = snprintf(status, sizeof(status), "%.20s - %d lines %s", E.filename ? E.filename : "[No Name]", E.numrows, E.dirty ? "(modified)" : "");
-    int rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d:%d", E.syntax ? E.syntax->filetype : "no ft", E.cy + 1, E.numrows, E.cx + 1);
+    int rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d:%d", E.syntax ? E.syntax->filetype : "no ft", E.cy + 1, E.numrows, editor_cx_to_index() + 1);
     if (len > E.screencols) {
         len = E.screencols;
     }
@@ -1170,19 +1219,19 @@ void editorMoveCursor(int key){
             break;
         }
         case ARROW_LEFT:{
-            if (E.cx != 0){
-                E.cx--;
+            if (E.cx != E.last_row_digits){
+                E.cx = max(E.cx - 1, E.last_row_digits);
             }else if (E.cy > 0){
-                E.cx = E.row[--E.cy].size;
+                E.cx = E.row[--E.cy].size + E.last_row_digits;
             }
             break;
         }
         case ARROW_RIGHT:{
-            if (row && E.cx < row->size){
-                E.cx++;
-            } else if (row && E.cx == row->size) {
+            if (row && editor_cx_to_index() < row->size){
+                E.cx = max(E.cx + 1, E.last_row_digits);
+            } else if (row && editor_cx_to_index() == row->size) {
                 E.cy++;
-                E.cx = 0;
+                E.cx = E.last_row_digits;
             }
             break;
         }
@@ -1190,8 +1239,8 @@ void editorMoveCursor(int key){
 
     row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
     int rowlen = row ? row->size : 0;
-    if (E.cx > rowlen){
-        E.cx = rowlen;
+    if (editor_cx_to_index() > rowlen){
+        E.cx = rowlen + E.last_row_digits;
     }
 }
 
@@ -1252,12 +1301,12 @@ void editorProccessKeyPress(){
             break;
 
         case HOME_KEY:{
-            E.cx = 0;
+            E.cx = E.last_row_digits;
             break;
         }
         case END_KEY:{
             if (E.cy < E.numrows){
-                E.cx = E.row[E.cy].size;
+                E.cx = max(E.row[E.cy].size, E.last_row_digits);
             }
             break;
         }
@@ -1300,7 +1349,7 @@ void editorProccessKeyPress(){
 /*** init ***/
 
 void initEditor(){
-    E.cx = E.cy = E.numrows = E.rowoff = E.coloff = E.rx = E.dirty = 0;
+    E.cx = E.cy = E.numrows = E.rowoff = E.coloff = E.rx = E.dirty = E.last_row_digits = 0;
     E.quit_times = E.quit_times_curr = 3;
     E.row = NULL;
     E.filename = NULL;
