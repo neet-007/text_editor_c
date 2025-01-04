@@ -630,7 +630,11 @@ void editorInsertRow(int at, char *s, size_t len){
     editorUpdateRow(&E.row[at]);
 
     E.numrows++;
-    E.last_row_digits = count_digits(E.numrows) + 1;
+    if (E.line_numbers){
+        E.last_row_digits = count_digits(E.numrows) + 1;
+    }else{
+        E.last_row_digits = 0;
+    }
     E.dirty++;
 }
 
@@ -653,7 +657,11 @@ void editorDelRow(int at){
     }
 
     E.numrows--;
-    E.last_row_digits = count_digits(E.numrows) + 1;
+    if (E.line_numbers){
+        E.last_row_digits = count_digits(E.numrows) + 1;
+    }else{
+        E.last_row_digits = 0;
+    }
     E.dirty++;
 }
 
@@ -745,7 +753,7 @@ void editorInsertNewline(){
         row->size = editor_cx_to_index();
         row->chars[row->size] = '\0';
         E.cy++;
-        E.cx = max(indent_count, E.last_row_digits);
+        E.cx = indent_count + E.last_row_digits;
         editorUpdateRow(row);
     }
 }
@@ -1004,8 +1012,6 @@ void editorScroll() {
 }
 
 void editorDrawRows(struct abuf *ab){
-    /*
-     * */
     int y;
     for (y = 0; y < E.screenrows; y++){
         int filerow = y + E.rowoff;
@@ -1030,26 +1036,28 @@ void editorDrawRows(struct abuf *ab){
                 abAppend(ab, "~", 1);
             }
         }else{
-            int curr = count_digits(E.row[filerow].idx + 1);
-            char *index = malloc(sizeof(char) * curr + 1);
-            if (index == NULL){
-                die("draw rows");
+            if (E.line_numbers){
+                int curr = count_digits(E.row[filerow].idx + 1);
+                char *index = malloc(sizeof(char) * curr + 1);
+                if (index == NULL){
+                    die("draw rows");
+                }
+                index[curr] = '\0';
+                snprintf(index, curr + 1, "%d", E.row[filerow].idx + 1); 
+                abAppend(ab, index, curr);
+                free(index);
+                char *ws = malloc((sizeof(char) * (E.last_row_digits - curr)) + 1);
+                if (ws == NULL){
+                    die("draw rows");
+                }
+                int t = 0;
+                while(curr + t < E.last_row_digits){
+                    ws[t++] = ' ';
+                }
+                ws[t] = '\0';
+                abAppend(ab, ws, E.last_row_digits - curr + 1);
+                free(ws);
             }
-            index[curr] = '\0';
-            snprintf(index, curr + 1, "%d", E.row[filerow].idx + 1); 
-            abAppend(ab, index, curr);
-            free(index);
-            char *ws = malloc((sizeof(char) * (E.last_row_digits - curr)) + 1);
-            if (ws == NULL){
-                die("draw rows");
-            }
-            int t = 0;
-            while(curr + t < E.last_row_digits){
-                ws[t++] = ' ';
-            }
-            ws[t] = '\0';
-            abAppend(ab, ws, E.last_row_digits - curr + 1);
-            free(ws);
 
             int len = E.row[filerow].rsize - E.coloff;
             if (len < 0) {
