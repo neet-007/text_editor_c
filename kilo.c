@@ -758,6 +758,37 @@ int editorCountIndent(erow *row){
     return count;
 }
 
+void editorInsertNewlineCommand(int dir){
+    erow *row = &E.row[E.cy];
+    int indent_count = editorCountIndent(row);
+    debug("indent count", "%d", indent_count);
+    if (indent_count > 0){
+        char *buf = malloc(sizeof(char) * indent_count + 1);
+
+        int i;
+        for (i = 0; i < indent_count; i++) {
+            buf[i] = E.indent;
+        }
+
+        buf[i] = '\0';
+
+        if (dir > 0){
+            editorInsertRow(++E.cy, buf, indent_count);
+        }else{
+            editorInsertRow(E.cy, buf, indent_count);
+        }
+        E.cx = E.last_row_digits + indent_count;
+        return;
+    }
+
+    if (dir > 0){
+        editorInsertRow(++E.cy, "", 0);
+    }else{
+        editorInsertRow(E.cy, "", 0);
+    }
+    E.cx = E.last_row_digits;
+}
+
 void editorInsertNewline(){
     if (E.cx == E.last_row_digits){
         editorInsertRow(E.cy, "", 0);
@@ -773,9 +804,9 @@ void editorInsertNewline(){
             for (i = 0; i < indent_count; i++) {
                 buf[i] = E.indent;
             }
-            
+
             buf[i] = '\0';
-            
+
             strcat(buf, &row->chars[editor_cx_to_index()]);
             editorInsertRow(E.cy + 1, buf, indent_count + row->size - editor_cx_to_index());
         }else {
@@ -998,6 +1029,28 @@ void editorFind(){
         E.cy = saved_cy;
         E.coloff = saved_coloff;
         E.rowoff = saved_rowoff;
+    }
+}
+
+void editorFindInRow(int c, int dir){
+    if (E.cy < 0 || E.cy > E.numrows){
+        return;
+    }
+    erow row = E.row[E.cy];
+    if (dir > 0){
+        for (int i = editor_cx_to_index() + 1; i < row.size; i++){
+            if (row.chars[i] == c){
+                E.cx = E.last_row_digits + i;
+                return;
+            }
+        }
+        return;
+    }
+    for (int i = editor_cx_to_index() - 1; i > 0; i--){
+        if (row.chars[i] == c){
+            E.cx = E.last_row_digits + i;
+            return;
+        }
     }
 }
 
@@ -1303,6 +1356,34 @@ void editorMoveCursor(int key){
     }
 }
 
+void editorMoveCursorCommand(int dir){
+    debug("start cy","%d", E.cy); 
+    if (E.cy < 0 || E.cy > E.numrows){
+        return;
+    }
+    erow row = E.row[E.cy];
+    if (dir < 0){
+        for (int i = 0; i < row.size; i++){
+            debug("key", "%d", row.chars[i]);
+            if (!isspace(row.chars[i])){
+                debug("key end", "%d", row.chars[i]);
+                E.cx = i + E.last_row_digits;
+                return;
+            }
+            debug("key is spaces", "%d", row.chars[i]);
+        }
+    }
+    for (int i = row.size; i > 0; i--){
+            debug("key", "%c", row.chars[i]);
+        if (!isspace(row.chars[i])){
+                debug("key end", "%d", row.chars[i]);
+            E.cx = i + E.last_row_digits;
+            return;
+        }
+            debug("key is spaces", "%d", row.chars[i]);
+    }
+}
+
 void mode_function_normal(int c){
     switch (c) {
         case CTRL_KEY('q'):{
@@ -1323,7 +1404,21 @@ void mode_function_normal(int c){
             break;
         }
 
-        case 'i':{
+        case 'i':
+        case 'I':{
+            if (c == 'I'){
+                editorMoveCursorCommand(-1);
+            }
+            E.mode = INSERT;
+            break;
+        }
+
+        case 'a':
+        case 'A':{
+            E.cx ++;
+            if (c == 'A'){
+                editorMoveCursorCommand(1);
+            }
             E.mode = INSERT;
             break;
         }
@@ -1353,9 +1448,69 @@ void mode_function_normal(int c){
             break;
         }
 
-        case 'o':{
-            editorInsertNewline();
+        case 'g':{
+            c = editorReadKey();
+            if (c != 'g'){
+                break;
+            }
+
+            E.cy = E.rowoff;
+            {
+                int times = E.screenrows;
+                while (times--){
+                    editorMoveCursor(ARROW_UP);
+                }
+            }
+
+            break;
+        }
+
+        case 'G':{
+            c = editorReadKey();
+            if (c != 'G'){
+                break;
+            }
+
+            E.cy = E.rowoff + E.screenrows - 1;
+            if (E.cy > E.numrows){
+                E.cy = E.numrows;
+            }
+
+            {
+                int times = E.screenrows;
+                while (times--){
+                    editorMoveCursor(ARROW_DOWN);
+                }
+            }
+
+            break;
+        }
+
+        case 'o':
+        case 'O':{
+            if (c == 'o'){
+                editorInsertNewlineCommand(1);
+            }else{
+                editorInsertNewlineCommand(-1);
+            }
             E.mode = INSERT;
+            break;
+        }
+
+        case 'f':
+        case 'F':{
+            int dir = c == 'f' ? 1 : -1;
+            c = editorReadKey();
+            if (c == '\x1b'){
+                break;
+            }
+            editorFindInRow(c, dir);
+            break;
+        }
+
+        case 'x':{
+            editorMoveCursor(ARROW_RIGHT);
+            editorDelChar();
             break;
         }
 
@@ -1380,13 +1535,16 @@ void mode_function_normal(int c){
             editorFind();
             break;
 
-        case HOME_KEY:{
+        case HOME_KEY:
+        case '0':{
             E.cx = E.last_row_digits;
             break;
         }
-        case END_KEY:{
+
+        case END_KEY:
+        case '$':{
             if (E.cy < E.numrows){
-                E.cx = max(E.row[E.cy].size, E.last_row_digits);
+                E.cx = E.row[E.cy].size + E.last_row_digits;
             }
             break;
         }
@@ -1404,8 +1562,9 @@ void mode_function_normal(int c){
 
             {
                 int times = E.screenrows;
-                while (times--)
+                while (times--){
                     editorMoveCursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
+                }
             }
             break;
         }
@@ -1572,7 +1731,8 @@ void editorProccessKeyPress(){
 /*** init ***/
 
 void initEditor(){
-    E.cx = E.cy = E.numrows = E.rowoff = E.coloff = E.rx = E.dirty = E.last_row_digits = 0;
+    E.cy = E.numrows = E.rowoff = E.coloff = E.rx = E.dirty = E.last_row_digits = 0;
+    E.cx = 2;
     E.quit_times = E.quit_times_curr = 3;
     E.mode = NORMAL;
     E.row = NULL;
