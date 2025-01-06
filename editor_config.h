@@ -18,6 +18,7 @@ typedef struct erow{
     int rsize;
     char *chars;
     char *render;
+    unsigned char *vhl;
     unsigned char *hl;
     int hl_open_comment;
 }erow;
@@ -47,6 +48,7 @@ typedef struct editorConfig{
     int quit_times;
     int quit_times_curr;
     int indent_amount;
+    int vhl_start, vhl_row;
     Indent indent;
     Mode mode;
     bool line_numbers;

@@ -68,7 +68,9 @@ enum editorHighlight {
     HL_KEYWORD2,
     HL_STRING,
     HL_NUMBER,
-    HL_MATCH
+    HL_MATCH,
+    VHL_NORMAL,
+    VHL_HIGHLIGHT,
 };
 
 #define HL_HIGHLIGHT_NUMBERS (1<<0)
@@ -322,7 +324,6 @@ int editorReadKey(){
     }else if (c == '\033'){
         char s[5];
     
-        debug("here", "");
         if (read(STDIN_FILENO, &s[0], 1) != 1){
             return c;
         }
@@ -335,8 +336,6 @@ int editorReadKey(){
                 int event = s[2] - 32;
                 int x = s[3] - 32;   
                 int y = s[4] - 32;  
-
-                debug("Mouse event", "Button %d at position (%d, %d)\n", event, x, y);
             }
         }
 
@@ -397,6 +396,63 @@ int getWindowSize(int *rows, int *cols){
 int is_separator(int c){
     return isspace(c) || c == '\0' || strchr(",.()+-/*=~%<>[];", c) != NULL;
 }
+
+void editorUpdateHighlight() {
+    int start_row = E.vhl_row <= E.cy ? E.vhl_row : E.cy;
+    int end_row = E.vhl_row <= E.cy ? E.cy : E.vhl_row;
+
+    int start_idx = (start_row == E.cy) ? editor_cx_to_index() : E.vhl_start;
+    int end_idx = E.row[start_row].rsize;
+    if (E.cy == E.vhl_row){
+        if (editor_cx_to_index() > E.vhl_start){
+            start_idx = E.vhl_start;
+            end_idx = editor_cx_to_index();
+        }else{
+            start_idx = editor_cx_to_index();
+            end_idx = E.vhl_start;
+        }
+        memset(&E.row[start_row].vhl[start_idx], VHL_HIGHLIGHT, end_idx - start_idx);
+        return;
+    }
+
+    memset(&E.row[start_row].vhl[start_idx], VHL_HIGHLIGHT, end_idx - start_idx);
+
+    for (int y = start_row + 1; y < end_row; y++) {
+        memset(E.row[y].vhl, VHL_HIGHLIGHT, E.row[y].rsize);
+    }
+
+    end_idx = (end_row == E.cy) ? editor_cx_to_index(): E.vhl_start;
+    memset(E.row[end_row].vhl, VHL_HIGHLIGHT, end_idx);
+}
+
+void editorResetHighlight(){
+    int start_row = E.vhl_row <= E.cy ? E.vhl_row : E.cy;
+    int end_row = E.vhl_row <= E.cy ? E.cy : E.vhl_row;
+
+    int start_idx = (start_row == E.cy) ? editor_cx_to_index() : E.vhl_start;
+    int end_idx = E.row[start_row].rsize;
+    if (E.cy == E.vhl_row){
+        if (editor_cx_to_index() > E.vhl_start){
+            start_idx = E.vhl_start;
+            end_idx = editor_cx_to_index();
+        }else{
+            start_idx = editor_cx_to_index();
+            end_idx = E.vhl_start;
+        }
+        memset(&E.row[start_row].vhl[start_idx], VHL_NORMAL, end_idx - start_idx);
+        return;
+    }
+
+    memset(&E.row[start_row].vhl[start_idx], VHL_NORMAL, end_idx - start_idx);
+
+    for (int y = start_row + 1; y < end_row; y++) {
+        memset(E.row[y].vhl, VHL_NORMAL, E.row[y].rsize);
+    }
+
+    end_idx = (end_row == E.cy) ? editor_cx_to_index(): E.vhl_start;
+    memset(E.row[end_row].vhl, VHL_NORMAL, end_idx);
+}
+
 
 void editorUpdateSyntax(erow *row) {
     row->hl = realloc(row->hl, row->rsize);
@@ -543,6 +599,24 @@ int editorSyntaxToColor(int hl){
     }
 }
 
+int editorHighlightToColor(int vhl, int *palette, int *index_in_palette){
+    switch (vhl) {
+        case VHL_NORMAL:{
+            return 49;
+        }
+        case VHL_HIGHLIGHT:{
+            *palette = 5;
+            *index_in_palette = 240;
+            return 48;
+        }
+
+        default:{
+            die("invalid color");
+            return -1;
+        }
+    }
+}
+
 void editorSelectSyntaxHighlight() {
     E.syntax = NULL;
     if (E.filename == NULL || !E.syntax_flag){
@@ -627,6 +701,14 @@ void editorUpdateRow(erow *row){
     row->render[idx] = '\0';
     row->rsize = idx;
 
+    if (row->vhl != NULL){
+        free(row->vhl);
+    }
+    row->vhl = (unsigned char *)malloc(sizeof(char) * row->rsize);
+    if (row->vhl == NULL){
+        die("update row");
+    }
+    memset(row->vhl, VHL_NORMAL, row->rsize);
     editorUpdateSyntax(row);
 }
 
@@ -658,7 +740,9 @@ void editorInsertRow(int at, char *s, size_t len){
     E.row[at].rsize = 0;
     E.row[at].render = NULL;
     E.row[at].hl = NULL;
+    E.row[at].vhl = NULL;
     E.row[at].hl_open_comment = 0;
+
     editorUpdateRow(&E.row[at]);
 
     E.numrows++;
@@ -674,6 +758,7 @@ void editorFreeRow(erow *row){
     free(row->chars);
     free(row->render);
     free(row->hl);
+    free(row->vhl);
 }
 
 void editorDelRow(int at){
@@ -761,7 +846,6 @@ int editorCountIndent(erow *row){
 void editorInsertNewlineCommand(int dir){
     erow *row = &E.row[E.cy];
     int indent_count = editorCountIndent(row);
-    debug("indent count", "%d", indent_count);
     if (indent_count > 0){
         char *buf = malloc(sizeof(char) * indent_count + 1);
 
@@ -1153,9 +1237,37 @@ void editorDrawRows(struct abuf *ab){
             }
             char *c = &E.row[filerow].render[E.coloff];
             unsigned char *hl = &E.row[filerow].hl[E.coloff];
+            unsigned char *vhl = &E.row[filerow].vhl[E.coloff];
+            if (vhl == NULL){
+                die("vhl null");
+            }
+            for (int g = 0; g < E.row[filerow].rsize; g++){
+            }
             int current_color = -1;
+            int current_highlite = -1;
             int j;
             for (j = 0; j < len; j++) {
+                if (vhl[j] == VHL_NORMAL){
+                    if (current_highlite!= -1){
+                        current_highlite= -1;
+                        abAppend(ab, "\x1b[49m", 5);
+                    }
+                }else{
+                    int palette = -1;
+                    int index_in_palette = -1;
+                    int h_color = editorHighlightToColor(vhl[j], &palette, &index_in_palette);
+                    if (current_highlite != h_color){
+                        current_highlite = h_color;
+                        char buf[64];
+                        if (palette != -1 || index_in_palette != -1){
+                            int clen = snprintf(buf, sizeof(buf), "\x1b[%d;%d;%dm", h_color, palette, index_in_palette);
+                            abAppend(ab, buf, clen);
+                        }else{
+                            int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", h_color);
+                            abAppend(ab, buf, clen);
+                        }
+                    }
+                }
                 if (iscntrl(c[j])) {
                     char sym = (c[j] <= 26) ? '@' + c[j] : '?';
                     abAppend(ab, "\x1b[7m", 4);
@@ -1184,6 +1296,7 @@ void editorDrawRows(struct abuf *ab){
                 }
             }
             abAppend(ab, "\x1b[39m", 5);
+            abAppend(ab, "\x1b[49m", 5);
         }
 
         abAppend(ab, "\x1b[K", 3);
@@ -1357,30 +1470,23 @@ void editorMoveCursor(int key){
 }
 
 void editorMoveCursorCommand(int dir){
-    debug("start cy","%d", E.cy); 
     if (E.cy < 0 || E.cy > E.numrows){
         return;
     }
     erow row = E.row[E.cy];
     if (dir < 0){
         for (int i = 0; i < row.size; i++){
-            debug("key", "%d", row.chars[i]);
             if (!isspace(row.chars[i])){
-                debug("key end", "%d", row.chars[i]);
                 E.cx = i + E.last_row_digits;
                 return;
             }
-            debug("key is spaces", "%d", row.chars[i]);
         }
     }
     for (int i = row.size; i > 0; i--){
-            debug("key", "%c", row.chars[i]);
         if (!isspace(row.chars[i])){
-                debug("key end", "%d", row.chars[i]);
             E.cx = i + E.last_row_digits;
             return;
         }
-            debug("key is spaces", "%d", row.chars[i]);
     }
 }
 
@@ -1425,6 +1531,9 @@ void mode_function_normal(int c){
 
         case 'v':{
             E.mode = VISUAL;
+            E.vhl_row = E.cy;
+            E.vhl_start = editor_cx_to_index();
+            editorUpdateHighlight();
             break;
         }
 
@@ -1709,17 +1818,39 @@ void mode_function_insert(int c){
 }
 
 void mode_function_visual(int c){
+    editorResetHighlight();
     switch (c) {
         case CTRL_KEY('l'):
         case '\x1b':{
             E.mode = NORMAL;
+            return;
+        }
+
+        case 'j':{
+            editorMoveCursor(ARROW_DOWN);
             break;
         }
 
+        case 'k':{
+            editorMoveCursor(ARROW_UP);
+            break;
+        }
+
+        case 'h':{
+            editorMoveCursor(ARROW_LEFT);
+            break;
+        }
+        
+        case 'l':{
+            editorMoveCursor(ARROW_RIGHT);
+            break;
+        }
         default:{
             break;
         }
     }
+
+    editorUpdateHighlight();
 }
 
 void editorProccessKeyPress(){
@@ -1731,7 +1862,7 @@ void editorProccessKeyPress(){
 /*** init ***/
 
 void initEditor(){
-    E.cy = E.numrows = E.rowoff = E.coloff = E.rx = E.dirty = E.last_row_digits = 0;
+    E.cy = E.numrows = E.rowoff = E.coloff = E.rx = E.dirty = E.last_row_digits = E.vhl_start = E.vhl_row = 0;
     E.cx = 2;
     E.quit_times = E.quit_times_curr = 3;
     E.mode = NORMAL;
