@@ -8,6 +8,7 @@
 - A basic text editor.
 - Config File: an ini file that holds some of the editor configuration.
 - Auto Indent: Automatically indent lines for better code formatting it only indents with the same amout as previous line.
+- Copy and Paste: Support for clipboard operations.
 
 ## Build
 
@@ -56,11 +57,15 @@ This section defines settings related to the editor behavior. Below are the conf
 | `syntax`         | Enables or disables syntax highlighting.     | `"true"` or `"false"` | `"true"`, `"false"`         |
 | `quit_times`     | Specifies the number of attempts required to quit the editor when there are unsaved changes. | Integer         | Any positive integer         |
 
+### Copy and paste
+
+first enter visual mode by pressing v from normal mode, then highlight the text to copy with y   
+and paste it with p
+
 ## Coming Features
 
 Planned features for future versions include:
 
-- **Copy and Paste**: Support for clipboard operations.
 - **Modal Editing**: Add modal editing similar to Vim.
 - **Multiple Buffers**: Allow editing multiple files simultaneously.
 

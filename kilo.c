@@ -1002,7 +1002,6 @@ void editorCopy() {
         return;
     }
 
-    debug("copy", "%s", buf);
     fprintf(fp, "%s", buf);
     free(buf);
     pclose(fp);
@@ -1019,7 +1018,7 @@ void editorPaste(){
 
     ssize_t read = getdelim(&buffer, &size, '\0', fp);
     if (read != -1) {
-        debug("paste", "%s", buffer);
+        buffer[read] = '\0';
     } else {
         perror("Failed to read clipboard data");
     }
@@ -1030,21 +1029,21 @@ void editorPaste(){
     char *first_row_start = malloc(sizeof(char) * (editor_cx_to_index() + 1));
     if (first_row_start == NULL){
         free(buffer);
-        die("first editor paste");
+        die("editor paste");
     }
     char *first_row_end = malloc(sizeof(char) * (E.row[row_index].size - editor_cx_to_index() + 1));
     if (first_row_end == NULL){
         free(buffer);
         free(first_row_start);
-        die("secnod editor paste");
+        die("editor paste");
     }
 
     strncpy(first_row_start, E.row[row_index].chars, editor_cx_to_index());
     first_row_start[editor_cx_to_index()] = '\0';
     strcpy(first_row_end, &E.row[row_index].chars[editor_cx_to_index()]);
 
-    while (end <= size) {
-        if (end == size || buffer[end] == '\n' || buffer[end] == '\r') {
+    while (end <= read) {
+        if (end == read || buffer[end] == '\n' || buffer[end] == '\r') {
             int line_len = end - start;
 
             if (row_index == E.cy) {
