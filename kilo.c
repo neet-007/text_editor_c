@@ -922,16 +922,90 @@ void editorDelChar(){
     }
 }
 
-void editorCopy(const char *text) {
+char *editorBufToString(){
+    int start_row = E.vhl_row <= E.cy ? E.vhl_row : E.cy;
+    int end_row = E.vhl_row <= E.cy ? E.cy : E.vhl_row;
+
+    char *buf = NULL;
+    int buf_size = 0;
+
+    int start_idx = (start_row == E.cy) ? editor_cx_to_index() : E.vhl_start;
+    int end_idx = E.row[start_row].rsize;
+    if (start_row == end_row) {
+        if (editor_cx_to_index() > E.vhl_start){
+            start_idx = E.vhl_start;
+            end_idx = editor_cx_to_index();
+        }else{
+            start_idx = editor_cx_to_index();
+            end_idx = E.vhl_start;
+        }
+        buf_size = (end_idx - start_idx) + 2;
+        buf = malloc(buf_size);
+        if (!buf) {
+            perror("Malloc failed");
+            exit(EXIT_FAILURE);
+        }
+        strncpy(buf, &E.row[start_row].chars[start_idx], end_idx - start_idx);
+        buf[end_idx - start_idx] = '\n';
+        buf[end_idx - start_idx + 1] = '\0';
+        return buf;
+    }
+
+    buf_size = (end_idx - start_idx) + 2;
+    buf = malloc(buf_size);
+    if (!buf) {
+        perror("Malloc failed");
+        exit(EXIT_FAILURE);
+    }
+    strncpy(buf, &E.row[start_row].chars[start_idx], end_idx - start_idx);
+    buf[end_idx - start_idx] = '\n';
+    buf[end_idx - start_idx + 1] = '\0';
+
+    for (int y = start_row + 1; y < end_row; y++) {
+        buf_size += E.row[y].size + 1;
+        char *temp = realloc(buf, buf_size + 1);
+        if (!temp) {
+            free(buf);
+            perror("Realloc failed");
+            exit(EXIT_FAILURE);
+        }
+        buf = temp;
+
+        strncat(buf, E.row[y].chars, E.row[y].size);
+        strcat(buf, "\n");
+    }
+
+    end_idx = (end_row == E.cy) ? editor_cx_to_index() : E.vhl_start;
+    buf_size += end_idx + 1;
+    char *temp = realloc(buf, buf_size + 1);
+    if (!temp) {
+        free(buf);
+        perror("Realloc failed");
+        exit(EXIT_FAILURE);
+    }
+    buf = temp;
+
+    strncat(buf, E.row[end_row].chars, end_idx);
+    strcat(buf, "\n");
+
+    return buf;
+}
+
+void editorCopy() {
+    char *buf = editorBufToString();
+    editorResetHighlight();
+    editorRefreshScreen();
     FILE *fp = popen("xclip -selection clipboard", "w");
     if (fp == NULL) {
+        free(buf);
         perror("Failed to run xclip");
         return;
     }
 
-    fprintf(fp, "%s", text);
+    debug("copy", "%s", buf);
+    fprintf(fp, "%s", buf);
+    free(buf);
     pclose(fp);
-    
 }
 
 void editorPaste(){
@@ -940,12 +1014,75 @@ void editorPaste(){
         die("Failed to run xclip");
     }
 
-    static char buffer[1024];
-    if (fgets(buffer, sizeof(buffer), fp) == NULL) {
-        pclose(fp);
+    char *buffer = NULL;
+    size_t size = 0;
+
+    ssize_t read = getdelim(&buffer, &size, '\0', fp);
+    if (read != -1) {
+        debug("paste", "%s", buffer);
+    } else {
+        perror("Failed to read clipboard data");
     }
 
+    int start = 0;
+    int end = 0;
+    int row_index = E.cy;
+    char *first_row_start = malloc(sizeof(char) * (editor_cx_to_index() + 1));
+    if (first_row_start == NULL){
+        free(buffer);
+        die("first editor paste");
+    }
+    char *first_row_end = malloc(sizeof(char) * (E.row[row_index].size - editor_cx_to_index() + 1));
+    if (first_row_end == NULL){
+        free(buffer);
+        free(first_row_start);
+        die("secnod editor paste");
+    }
+
+    strncpy(first_row_start, E.row[row_index].chars, editor_cx_to_index());
+    first_row_start[editor_cx_to_index()] = '\0';
+    strcpy(first_row_end, &E.row[row_index].chars[editor_cx_to_index()]);
+
+    while (end <= size) {
+        if (end == size || buffer[end] == '\n' || buffer[end] == '\r') {
+            int line_len = end - start;
+
+            if (row_index == E.cy) {
+                erow *row = &E.row[row_index];
+                row->size = editor_cx_to_index() + line_len;
+                row->chars = realloc(row->chars, row->size + 1);
+                if (!row->chars) {
+                    die("editor paste");
+                }
+
+                strncpy(&row->chars[editor_cx_to_index()], &buffer[start], line_len);
+                row->chars[row->size] = '\0';
+                editorUpdateRow(row);
+            } else {
+                editorInsertRow(row_index, &buffer[start], line_len);
+            }
+
+            start = end + 1;
+            row_index++;
+        }
+        end++;
+    }
+
+    erow *last_row = &E.row[row_index - 1];
+    last_row->size += strlen(first_row_end);
+    last_row->chars = realloc(last_row->chars, last_row->size + 1);
+    if (!last_row->chars) {
+        die("editor paste");
+    }
+
+    strcat(last_row->chars, first_row_end);
+    editorUpdateRow(last_row);
+
+    free(first_row_start);
+    free(first_row_end);
+    free(buffer);
     pclose(fp);
+    editorRefreshScreen();
 }
 
 /*** file i/o ***/
@@ -1698,7 +1835,7 @@ void mode_function_normal(int c){
 
         case 'y':{
             // TODO: copy
-            editorCopy("Hello, Clipboard!");
+            editorCopy();
             break;
         }
 
@@ -1747,7 +1884,7 @@ void mode_function_insert(int c){
         }
 
         case CTRL_KEY('c'):{
-            editorCopy("Hello, Clipboard!");
+            editorCopy();
             break;
         }
 
@@ -1840,11 +1977,17 @@ void mode_function_visual(int c){
             editorMoveCursor(ARROW_LEFT);
             break;
         }
-        
+
         case 'l':{
             editorMoveCursor(ARROW_RIGHT);
             break;
         }
+
+        case 'y':{
+            editorCopy();
+            break;
+        }
+
         default:{
             break;
         }
