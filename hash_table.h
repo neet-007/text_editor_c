@@ -1,3 +1,6 @@
+#ifndef KILO_HASH_TABLE_H
+#define KILO_HASH_TABLE_H
+
 #define CAPACITY 50000
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,3 +53,5 @@ void ht_delete(HashTable* table, char* key);
 
 void print_item(Ht_item *item);
 void print_table(HashTable *table, int indent);
+
+#endif

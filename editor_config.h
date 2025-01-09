@@ -1,3 +1,6 @@
+#ifndef KILO_EDITOR_CONFIG_H
+#define KILO_EDITOR_CONFIG_H
+
 #include <time.h>
 #include <termios.h>
 #include "ini_parser.h"
@@ -34,7 +37,7 @@ typedef enum Mode{
     VISUAL,
 }Mode ;
 
-typedef void (*ModeFn)(int c);
+typedef void (*ModeFn)();
 
 typedef struct editorConfig{
     int os_type;
@@ -64,3 +67,5 @@ typedef struct editorConfig{
 } editorConfig;
 
 int init_kilo_config(editorConfig* kilo_config);
+
+#endif

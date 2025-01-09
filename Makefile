@@ -2,7 +2,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Iinclude -w  # Include the directory where exercise.h is located
 TARGET = kilo
-SRC_FILES = hash_table.c editor_config.c ini_parser.c kilo.c 
+SRC_FILES = hash_table.c editor_config.c ini_parser.c kilo.c editor_commands.c utils.c text_highlighting.c row.c screen.c
 
 # Build target
 all: $(TARGET)
