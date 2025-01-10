@@ -5,11 +5,6 @@
 void editorMoveCursorCommand_(editorConfig *config, int count, EDITOR_MOTIONS motion){
     erow *row = ((*config).cy >= (*config).numrows) ? NULL : &(*config).row[(*config).cy];
 
-    row = ((*config).cy >= (*config).numrows) ? NULL : &(*config).row[(*config).cy];
-    int rowlen = row ? row->rsize : 0;
-    if (editor_cx_to_index(config) > rowlen){
-        (*config).cx = rowlen + (*config).last_row_digits;
-    }
     switch (motion) {
         case UP:{
             if ((*config).cy != 0){
@@ -32,17 +27,19 @@ void editorMoveCursorCommand_(editorConfig *config, int count, EDITOR_MOTIONS mo
         }
 
         case LEFT:{
-            if ((*config).cx != (*config).last_row_digits){
-                (*config).cx = max((*config).cx - count, (*config).last_row_digits);
-            }else if ((*config).cy > 0){
+            if ((*config).cx > (*config).last_row_digits){
+                (*config).cx = (*config).cx - count;
+            }
+            else if ((*config).cy > 0){
                 (*config).cx = (*config).row[--(*config).cy].rsize + (*config).last_row_digits;
             }
+
             break;
         }
 
         case RIGTH:{
             if (row && editor_cx_to_index(config) < row->rsize){
-                (*config).cx = max((*config).cx + count, (*config).last_row_digits);
+                (*config).cx = (*config).cx + count;
             } else if (row && editor_cx_to_index(config) == row->rsize) {
                 (*config).cy++;
                 (*config).cx = (*config).last_row_digits;
@@ -93,6 +90,12 @@ void editorMoveCursorCommand_(editorConfig *config, int count, EDITOR_MOTIONS mo
         default:{
 
         }
+    }
+
+    row = ((*config).cy >= (*config).numrows) ? NULL : &(*config).row[(*config).cy];
+    int rowlen = row ? row->rsize : 0;
+    if (editor_cx_to_index(config) > rowlen){
+        (*config).cx = rowlen + (*config).last_row_digits;
     }
 }
 

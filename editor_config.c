@@ -69,7 +69,6 @@ int init_kilo_config(editorConfig* kilo_config){
     }
 
 
-    print_table(editor_config, 0);
     Ht_item *editor_section_item = ht_search(config->sections, "editor");
     if (editor_section_item == NULL || editor_section_item->value_type != TYPE_HASH_TABLE){
         free_table(editor_config);
@@ -170,6 +169,10 @@ int init_kilo_config(editorConfig* kilo_config){
             }
             case 2:{
                 kilo_config->line_numbers = (*(bool *)editor_item->value);
+                if (kilo_config->line_numbers){
+                    kilo_config->cx = 2;
+                    kilo_config->last_row_digits = 2;
+                }
                 break;
             }
             case 3:{

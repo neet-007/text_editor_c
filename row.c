@@ -1,7 +1,8 @@
 #include "row.h"
+#include "utils.h"
 
 int editorRowCxToRx(editorConfig *config, erow *row, int cx) {
-    int rx = 0;
+    int rx = config->last_row_digits;
     int j;
     for (j = 0; j < cx; j++) {
         if (row->chars[j] == '\t'){
@@ -102,6 +103,7 @@ void editorInsertRow(editorConfig *config, int at, char *s, size_t len){
     (*config).numrows++;
     if ((*config).line_numbers){
         (*config).last_row_digits = count_digits((*config).numrows) + 1;
+        (*config).screencols = (*config).screencolsBase - (*config).last_row_digits;
     }else{
         (*config).last_row_digits = 0;
     }
@@ -130,6 +132,7 @@ void editorDelRow(editorConfig *config, int at){
     (*config).numrows--;
     if ((*config).line_numbers){
         (*config).last_row_digits = count_digits((*config).numrows) + 1;
+        (*config).screencols = (*config).screencolsBase - (*config).last_row_digits;
     }else{
         (*config).last_row_digits = 0;
     }

@@ -446,6 +446,9 @@ void editorOpen(char *filename){
     }
     free(line);
     fclose(fp);
+    E.last_row_digits = count_digits(E.numrows) + 1;
+    E.screencols = E.screencolsBase - E.last_row_digits;
+    E.cx = E.last_row_digits;
     E.dirty = 0;
 }
 
@@ -1210,8 +1213,7 @@ void editorProccessKeyPress(){
 /*** init ***/
 
 void initEditor(){
-    E.cy = E.numrows = E.rowoff = E.coloff = E.rx = E.dirty = E.last_row_digits = E.vhl_start = E.vhl_row = 0;
-    E.cx = 2;
+    E.cy = E.numrows = E.rowoff = E.cx = E.coloff = E.rx = E.dirty = E.last_row_digits = E.vhl_start = E.vhl_row = 0;
     E.quit_times = E.quit_times_curr = 3;
     E.mode = NORMAL;
     E.row = NULL;
@@ -1228,11 +1230,12 @@ void initEditor(){
         die("unkown os");
     }
     E.os_type = os;
-    if (getWindowSize(&E.screenrows, &E.screencols) == -1){
+    if (getWindowSize(&E.screenrows, &E.screencolsBase) == -1){
         die("getWindowSize");
     }
     E.screenrows -= 2;
     init_kilo_config(&E);
+    E.screencols = E.screencolsBase - E.last_row_digits;
 }
 
 int main(int argc, char *argv[]){

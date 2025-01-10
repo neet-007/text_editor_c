@@ -1,22 +1,22 @@
 #include "screen.h"
+#include "utils.h"
 
 void editorScroll(editorConfig *config) {
-    (*config).rx = 0;
+    (*config).rx = config->last_row_digits;
     if ((*config).cy < (*config).numrows){
-        (*config).rx = editorRowCxToRx(config, &(*config).row[(*config).cy], (*config).cx);
+        (*config).rx = editorRowCxToRx(config, &(*config).row[(*config).cy], editor_cx_to_index(config));
     }
-
     if ((*config).cy < (*config).rowoff) {
         (*config).rowoff = (*config).cy;
     }
     if ((*config).cy >= (*config).rowoff + (*config).screenrows) {
         (*config).rowoff = (*config).cy - (*config).screenrows + 1;
     }
-    if ((*config).rx < (*config).coloff) {
-        (*config).coloff = (*config).rx;
+    if ((*config).rx - config->last_row_digits < (*config).coloff) {
+        (*config).coloff = (*config).rx - config->last_row_digits;
     }
-    if ((*config).rx >= (*config).coloff + (*config).screencols) {
-        (*config).coloff = (*config).rx - (*config).screencols + 1;
+    if ((*config).rx - config->last_row_digits >= (*config).coloff + (*config).screencols) {
+        (*config).coloff = (*config).rx - config->last_row_digits - (*config).screencols + 1;
     }
 }
 
