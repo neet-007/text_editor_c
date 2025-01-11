@@ -171,6 +171,7 @@ int init_kilo_config(editorConfig* kilo_config){
                 kilo_config->line_numbers = (*(bool *)editor_item->value);
                 if (kilo_config->line_numbers){
                     kilo_config->cx = 2;
+                    kilo_config->last_cx = kilo_config->cx;
                     kilo_config->last_row_digits = 2;
                 }
                 break;

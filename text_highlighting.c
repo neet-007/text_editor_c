@@ -1,4 +1,5 @@
 #include "text_highlighting.h"
+#include "utils.h"
 
 char *C_HL_extensions[] = { ".c", ".h", ".cpp", NULL };
 char *C_HL_keywords[] = {
@@ -42,12 +43,12 @@ void editorUpdateHighlight(editorConfig *config) {
     }
 
     memset(&(*config).row[start_row].vhl[start_idx], VHL_HIGHLIGHT, end_idx - start_idx);
-
     for (int y = start_row + 1; y < end_row; y++) {
         memset((*config).row[y].vhl, VHL_HIGHLIGHT, (*config).row[y].rsize);
     }
 
     end_idx = (end_row == (*config).cy) ? editor_cx_to_index(config): (*config).vhl_start;
+    debug("bef last emeset", "end idx %d cx %d vhl start %d", end_idx, editor_cx_to_index(config), (*config).vhl_start);
     memset((*config).row[end_row].vhl, VHL_HIGHLIGHT, end_idx);
 }
 

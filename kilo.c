@@ -322,6 +322,7 @@ void editorInsertNewlineCommand(int dir){
             editorInsertRow(&E, E.cy, buf, indent_count);
         }
         E.cx = E.last_row_digits + indent_count;
+        E.last_cx = E.cx;
         return;
     }
 
@@ -331,6 +332,7 @@ void editorInsertNewlineCommand(int dir){
         editorInsertRow(&E, E.cy, "", 0);
     }
     E.cx = E.last_row_digits;
+    E.last_cx = E.cx;
 }
 
 void editorInsertNewline(){
@@ -338,6 +340,7 @@ void editorInsertNewline(){
         editorInsertRow(&E, E.cy, "", 0);
         E.cy++;
         E.cx = E.last_row_digits;
+        E.last_cx = E.cx;
     }else{
         erow *row = &E.row[E.cy];
         int indent_count = editorCountIndent(row);
@@ -361,6 +364,7 @@ void editorInsertNewline(){
         row->chars[row->size] = '\0';
         E.cy++;
         E.cx = indent_count + E.last_row_digits;
+        E.last_cx = E.cx;
         editorUpdateRow(&E, row);
     }
 }
@@ -373,9 +377,11 @@ void editorDeleteCommand(int amount){
     erow *row = &E.row[E.cy];
     if (E.cx > E.last_row_digits){
         E.cx = max(E.cx - 1, E.last_row_digits);
+        E.last_cx = E.cx;
         editorRowDelChar(&E, row, editor_cx_to_index(&E));
     }else{
         E.cx = E.row[E.cy - 1].size + E.last_row_digits;
+        E.last_cx = E.cx;
         editorRowAppendString(&E, &E.row[E.cy - 1], row->chars, row->size);
         editorDelRow(&E, E.cy);
         E.cy--;
@@ -390,9 +396,11 @@ void editorDelChar(){
     erow *row = &E.row[E.cy];
     if (E.cx > E.last_row_digits){
         E.cx = max(E.cx - 1, E.last_row_digits);
+        E.last_cx = E.cx;
         editorRowDelChar(&E, row, editor_cx_to_index(&E));
     }else{
         E.cx = E.row[E.cy - 1].size + E.last_row_digits;
+        E.last_cx = E.cx;
         editorRowAppendString(&E, &E.row[E.cy - 1], row->chars, row->size);
         editorDelRow(&E, E.cy);
         E.cy--;
@@ -446,9 +454,12 @@ void editorOpen(char *filename){
     }
     free(line);
     fclose(fp);
-    E.last_row_digits = count_digits(E.numrows) + 1;
+    if (E.line_numbers){
+        E.last_row_digits = count_digits(E.numrows) + 1;
+    }
     E.screencols = E.screencolsBase - E.last_row_digits;
     E.cx = E.last_row_digits;
+    E.last_cx = E.cx;
     E.dirty = 0;
 }
 
@@ -579,6 +590,7 @@ void editorFindInRow(int c, int dir){
         for (int i = editor_cx_to_index(&E) + 1; i < row.size; i++){
             if (row.chars[i] == c){
                 E.cx = E.last_row_digits + i;
+                E.last_cx = E.cx;
                 return;
             }
         }
@@ -587,6 +599,7 @@ void editorFindInRow(int c, int dir){
     for (int i = editor_cx_to_index(&E) - 1; i > 0; i--){
         if (row.chars[i] == c){
             E.cx = E.last_row_digits + i;
+            E.last_cx = E.cx;
             return;
         }
     }
@@ -663,29 +676,41 @@ void editorMoveCursor(int key, int amount){
         case ARROW_UP:{
             if (E.cy != 0){
                 E.cy = max(E.cy - amount, 0);
+                E.cx = E.last_cx;
+                if (editor_cx_to_index(&E) >= E.row[E.cy].size){
+                    E.cx = row->size + E.last_row_digits;
+                }
             }
             break;
         }
         case ARROW_DOWN:{
-            if (E.cy < E.numrows){
-                E.cy = min(E.cy + amount, E.numrows);
+            if (E.cy < E.numrows - 1){
+                E.cy = min(E.cy + amount, E.numrows - 1);
+                E.cx = E.last_cx;
+                if (editor_cx_to_index(&E) >= E.row[E.cy].size){
+                    E.cx = row->size + E.last_row_digits;
+                }
             }
             break;
         }
         case ARROW_LEFT:{
             if (E.cx != E.last_row_digits){
                 E.cx = max(E.cx - amount, E.last_row_digits);
+                E.last_cx = E.cx;
             }else if (E.cy > 0){
                 E.cx = E.row[--E.cy].size + E.last_row_digits;
+                E.last_cx = E.cx;
             }
             break;
         }
         case ARROW_RIGHT:{
             if (row && editor_cx_to_index(&E) < row->size){
-                E.cx = max(E.cx + amount, E.last_row_digits);
-            } else if (row && editor_cx_to_index(&E) == row->size) {
+                E.cx = E.cx + amount;
+                E.last_cx = E.cx;
+            } else if (row && editor_cx_to_index(&E) == row->size && E.cy < E.numrows - 1) {
                 E.cy++;
                 E.cx = E.last_row_digits;
+                E.last_cx = E.cx;
             }
             break;
         }
@@ -1213,7 +1238,7 @@ void editorProccessKeyPress(){
 /*** init ***/
 
 void initEditor(){
-    E.cy = E.numrows = E.rowoff = E.cx = E.coloff = E.rx = E.dirty = E.last_row_digits = E.vhl_start = E.vhl_row = 0;
+    E.cy = E.numrows = E.rowoff = E.cx = E.coloff = E.rx = E.last_cx = E.dirty = E.last_row_digits = E.vhl_start = E.vhl_row = 0;
     E.quit_times = E.quit_times_curr = 3;
     E.mode = NORMAL;
     E.row = NULL;

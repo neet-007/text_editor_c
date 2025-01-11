@@ -44,6 +44,7 @@ typedef struct editorConfig{
     int cx, cy;
     int rowoff, coloff;
     int rx;
+    int last_cx;
     int screenrows;
     int screencolsBase;
     int screencols;

@@ -9,6 +9,7 @@ void editorMoveCursorCommand_(editorConfig *config, int count, EDITOR_MOTIONS mo
         case UP:{
             if ((*config).cy != 0){
                 (*config).cy = max((*config).cy - count, 0);
+                (*config).cx = (*config).last_cx;
                 if ((*config).cx > (*config).row[(*config).cy].rsize + (*config).last_row_digits){
                     (*config).cx = (*config).row[(*config).cy].rsize + (*config).last_row_digits;
                 }
@@ -17,8 +18,9 @@ void editorMoveCursorCommand_(editorConfig *config, int count, EDITOR_MOTIONS mo
         }
 
         case DOWN:{
-            if ((*config).cy < (*config).numrows){
-                (*config).cy = min((*config).cy + count, (*config).numrows);
+            if ((*config).cy < (*config).numrows - 1){
+                (*config).cy = min((*config).cy + count, (*config).numrows - 1);
+                (*config).cx = (*config).last_cx;
                 if ((*config).cx > (*config).row[(*config).cy].rsize + (*config).last_row_digits){
                     (*config).cx = (*config).row[(*config).cy].rsize + (*config).last_row_digits;
                 }
@@ -29,9 +31,11 @@ void editorMoveCursorCommand_(editorConfig *config, int count, EDITOR_MOTIONS mo
         case LEFT:{
             if ((*config).cx > (*config).last_row_digits){
                 (*config).cx = (*config).cx - count;
+                (*config).last_cx = (*config).cx;
             }
             else if ((*config).cy > 0){
                 (*config).cx = (*config).row[--(*config).cy].rsize + (*config).last_row_digits;
+                (*config).last_cx = (*config).cx;
             }
 
             break;
@@ -40,21 +44,25 @@ void editorMoveCursorCommand_(editorConfig *config, int count, EDITOR_MOTIONS mo
         case RIGTH:{
             if (row && editor_cx_to_index(config) < row->rsize){
                 (*config).cx = (*config).cx + count;
-            } else if (row && editor_cx_to_index(config) == row->rsize) {
+                (*config).last_cx = (*config).cx;
+            } else if (row && editor_cx_to_index(config) == row->rsize && (*config).cy < (*config).numrows - 1) {
                 (*config).cy++;
                 (*config).cx = (*config).last_row_digits;
+                (*config).last_cx = (*config).cx;
             }
             break;
         }
 
         case START_LINE:{
             (*config).cx = (*config).last_row_digits;
+            (*config).last_cx = (*config).cx;
             break;
         }
 
         case END_LINE:{
             if ((*config).cy < (*config).numrows){
                 (*config).cx = (*config).row[(*config).cy].rsize + (*config).last_row_digits;
+                (*config).last_cx = (*config).cx;
             }
             break;
         }
@@ -300,12 +308,14 @@ void editorSearchCommand_(editorConfig *config, int count, EDITOR_MOTIONS motion
                     last = i;
                 }else{
                     (*config).cx = (*config).last_row_digits + i;
+                    (*config).last_cx = (*config).cx;
                     return;
                 }
             }
         }
         if (last != -1){
             (*config).cx = (*config).last_row_digits + last;
+            (*config).last_cx = (*config).cx;
             return;
         }
         return;
@@ -317,12 +327,14 @@ void editorSearchCommand_(editorConfig *config, int count, EDITOR_MOTIONS motion
                     last = i;
                 }else{
                     (*config).cx = (*config).last_row_digits + i;
+                    (*config).last_cx = (*config).cx;
                     return;
                 }
         }
     }
     if (last != -1){
         (*config).cx = (*config).last_row_digits + last;
+        (*config).last_cx = (*config).cx;
         return;
     }
 }
