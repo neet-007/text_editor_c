@@ -57,6 +57,7 @@ typedef struct editorConfig{
     Indent indent;
     Mode mode;
     bool line_numbers;
+    bool relative_line_numbers;
     bool syntax_flag;
     erow *row;
     int dirty;

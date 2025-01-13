@@ -1,4 +1,5 @@
 #include "screen.h"
+#include "append_buffer.h"
 #include "utils.h"
 
 void editorScroll(editorConfig *config) {
@@ -45,7 +46,34 @@ void editorDrawRows(editorConfig *config, struct abuf *ab){
                 abAppend(ab, "~", 1);
             }
         }else{
-            if ((*config).line_numbers){
+            if ((*config).relative_line_numbers){
+                int line = (*config).row[filerow].idx == (*config).cy ? (*config).row[filerow].idx + 1 : abs((*config).cy - (*config).row[filerow].idx);
+                int line_num_digits = count_digits(line);
+                int padding = (*config).last_row_digits - line_num_digits - 1;
+
+                char *line_num = malloc(sizeof(char) * ((*config).last_row_digits + 2));
+                if (line_num == NULL) {
+                    die("draw rows");
+                }
+
+                memset(line_num, ' ', padding);
+
+                snprintf(line_num + padding, line_num_digits + 1, "%d", line);
+
+                line_num[padding + line_num_digits] = ' ';
+
+                line_num[padding + line_num_digits + 1] = '\0';
+    
+                if ((*config).row[filerow].idx == (*config).cy){
+                    abAppend(ab, "\x1b[33m", 5);
+                    abAppend(ab, line_num, (*config).last_row_digits + 1);
+                    abAppend(ab, "\x1b[0m", 4);
+                }else{
+                    abAppend(ab, line_num, (*config).last_row_digits + 1);
+                }
+
+                free(line_num);
+            }else if ((*config).line_numbers){
                 int curr = count_digits((*config).row[filerow].idx + 1);
                 char *index = malloc(sizeof(char) * curr + 1);
                 if (index == NULL){

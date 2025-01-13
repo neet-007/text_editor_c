@@ -1,4 +1,5 @@
 #include "editor_config.h"
+#include "hash_table.h"
 
 char *expand_path(const char *path) {
     if (path[0] == '~') {
@@ -30,11 +31,13 @@ HashTable *init_config(){
     int indent_amount = 8;
     char *indent = "tabs";
     bool line_numbers= "true";
+    bool relative_line_numbers= "false";
     bool syntax = "true";
     int quit_times = 3;
     ht_insert(config, "indent_amount", &indent_amount, sizeof(int), TYPE_INT);
     ht_insert(config, "indent", indent, (sizeof(char) * strlen(indent)) + 1, TYPE_STR);
     ht_insert(config, "line_numbers", &line_numbers, sizeof(_Bool), TYPE_BOOL);
+    ht_insert(config, "relative_line_numbers", &relative_line_numbers, sizeof(_Bool), TYPE_BOOL);
     ht_insert(config, "syntax", &syntax, sizeof(_Bool), TYPE_BOOL);
     ht_insert(config, "quit_times", &quit_times, sizeof(int), TYPE_INT);
 
@@ -56,7 +59,7 @@ Ini *load_config(){
 }
 
 int init_kilo_config(editorConfig* kilo_config){
-    char *included[5] = {"indent_amount", "indent", "line_numbers", "syntax", "quit_times"};
+    char *included[6] = {"indent_amount", "indent", "line_numbers", "syntax", "quit_times", "relative_line_numbers"};
 
     HashTable *editor_config = init_config();
     if (editor_config == NULL){
@@ -79,7 +82,7 @@ int init_kilo_config(editorConfig* kilo_config){
     }
     
     HashTable *editor_section = (HashTable *)editor_section_item->value;
-    for (int i = 0; i < 5; i++){
+    for (int i = 0; i < 6; i++){
         char *curr = included[i];
 
         Ht_item *editor_item = ht_search(editor_config, curr);
@@ -150,8 +153,8 @@ int init_kilo_config(editorConfig* kilo_config){
             }
         }
     }
-    
-    for (int i = 0; i < 5; i++){
+
+    for (int i = 0; i < 6; i++){
         Ht_item* editor_item = ht_search(editor_config, included[i]);
         switch (i) {
             case 0:{
@@ -169,11 +172,6 @@ int init_kilo_config(editorConfig* kilo_config){
             }
             case 2:{
                 kilo_config->line_numbers = (*(bool *)editor_item->value);
-                if (kilo_config->line_numbers){
-                    kilo_config->cx = 2;
-                    kilo_config->last_cx = kilo_config->cx;
-                    kilo_config->last_row_digits = 2;
-                }
                 break;
             }
             case 3:{
@@ -185,10 +183,21 @@ int init_kilo_config(editorConfig* kilo_config){
                 kilo_config->quit_times_curr = (*(int *)editor_item->value);
                 break;
             }
+            case 5:{
+                kilo_config->relative_line_numbers = (*(bool *)editor_item->value);
+                if (kilo_config->relative_line_numbers){
+                    kilo_config->line_numbers = true;
+                }
+            }
             default:{
                 break;
             }
         }
+    }
+    if (kilo_config->line_numbers){
+        kilo_config->cx = 2;
+        kilo_config->last_cx = kilo_config->cx;
+        kilo_config->last_row_digits = 2;
     }
     free_table(editor_config);
     free(config->filename);
@@ -197,4 +206,3 @@ int init_kilo_config(editorConfig* kilo_config){
 
     return 1;
 }
-

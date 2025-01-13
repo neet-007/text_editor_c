@@ -12,6 +12,7 @@
 int editor_cx_to_index(editorConfig *config);
 int max(int a, int b);
 int min(int a, int b);
+int abs(int a);
 char *tabs_to_spaces(int tabs_count);
 int count_digits(int num);
 void die(const char *s);

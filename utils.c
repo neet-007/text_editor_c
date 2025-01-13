@@ -12,6 +12,14 @@ int min(int a, int b){
     return a > b ? b : a;
 }
 
+int abs(int a){
+    if (a < 0){
+        return a * -1;
+    }
+
+    return a;
+}
+
 char *tabs_to_spaces(int tabs_count){
     char *spaces = malloc(sizeof(char) * tabs_count);
     if (spaces == NULL){

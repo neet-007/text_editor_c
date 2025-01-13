@@ -284,10 +284,12 @@ void editorInsertChar(int c){
         for (int i = 0; i < E.indent_amount; i++){
             editorRowInsertChar(&E, &E.row[E.cy], editor_cx_to_index(&E), SPACE);
             E.cx++;
+            E.last_cx = E.cx;
         }
     }else{
         editorRowInsertChar(&E, &E.row[E.cy], editor_cx_to_index(&E), c);
         E.cx++;
+        E.last_cx = E.cx;
     }
 }
 
@@ -305,25 +307,27 @@ int editorCountIndent(erow *row){
 
 void editorInsertNewlineCommand(int dir){
     erow *row = &E.row[E.cy];
-    int indent_count = editorCountIndent(row);
-    if (indent_count > 0){
-        char *buf = malloc(sizeof(char) * indent_count + 1);
+    if (row != NULL){
+        int indent_count = editorCountIndent(row);
+        if (indent_count > 0){
+            char *buf = malloc(sizeof(char) * indent_count + 1);
 
-        int i;
-        for (i = 0; i < indent_count; i++) {
-            buf[i] = E.indent;
+            int i;
+            for (i = 0; i < indent_count; i++) {
+                buf[i] = E.indent;
+            }
+
+            buf[i] = '\0';
+
+            if (dir > 0){
+                editorInsertRow(&E, ++E.cy, buf, indent_count);
+            }else{
+                editorInsertRow(&E, E.cy, buf, indent_count);
+            }
+            E.cx = E.last_row_digits + indent_count;
+            E.last_cx = E.cx;
+            return;
         }
-
-        buf[i] = '\0';
-
-        if (dir > 0){
-            editorInsertRow(&E, ++E.cy, buf, indent_count);
-        }else{
-            editorInsertRow(&E, E.cy, buf, indent_count);
-        }
-        E.cx = E.last_row_digits + indent_count;
-        E.last_cx = E.cx;
-        return;
     }
 
     if (dir > 0){
@@ -782,6 +786,7 @@ void mode_function_normal(){
         case 'a':
         case 'A':{
             E.cx ++;
+            E.last_cx = E.cx;
             if (c == 'A'){
                 editorMoveCursorCommand(1);
             }
@@ -1259,8 +1264,12 @@ void initEditor(){
         die("getWindowSize");
     }
     E.screenrows -= 2;
-    init_kilo_config(&E);
+    int res = init_kilo_config(&E);
+    if (res == 0){
+        die("init");
+    }
     E.screencols = E.screencolsBase - E.last_row_digits;
+    editorInsertRow(&E, 0, "", 0);
 }
 
 int main(int argc, char *argv[]){
