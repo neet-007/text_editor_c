@@ -74,26 +74,31 @@ void editorDrawRows(editorConfig *config, struct abuf *ab){
 
                 free(line_num);
             }else if ((*config).line_numbers){
-                int curr = count_digits((*config).row[filerow].idx + 1);
-                char *index = malloc(sizeof(char) * curr + 1);
-                if (index == NULL){
+                int line_num_digits = count_digits((*config).row[filerow].idx + 1);
+                int padding = (*config).last_row_digits - line_num_digits - 1;
+
+                char *line_num = malloc(sizeof(char) * ((*config).last_row_digits + 2));
+                if (line_num == NULL) {
                     die("draw rows");
                 }
-                index[curr] = '\0';
-                snprintf(index, curr + 1, "%d", (*config).row[filerow].idx + 1); 
-                abAppend(ab, index, curr);
-                free(index);
-                char *ws = malloc((sizeof(char) * ((*config).last_row_digits - curr)) + 1);
-                if (ws == NULL){
-                    die("draw rows");
+
+                memset(line_num, ' ', padding);
+
+                snprintf(line_num + padding, line_num_digits + 1, "%d", (*config).row[filerow].idx + 1);
+
+                line_num[padding + line_num_digits] = ' ';
+
+                line_num[padding + line_num_digits + 1] = '\0';
+
+                if ((*config).row[filerow].idx == (*config).cy){
+                    abAppend(ab, "\x1b[33m", 5);
+                    abAppend(ab, line_num, (*config).last_row_digits + 1);
+                    abAppend(ab, "\x1b[0m", 4);
+                }else{
+                    abAppend(ab, line_num, (*config).last_row_digits + 1);
                 }
-                int t = 0;
-                while(curr + t < (*config).last_row_digits){
-                    ws[t++] = ' ';
-                }
-                ws[t] = '\0';
-                abAppend(ab, ws, (*config).last_row_digits - curr + 1);
-                free(ws);
+
+                free(line_num);
             }
 
             int len = (*config).row[filerow].rsize - (*config).coloff;

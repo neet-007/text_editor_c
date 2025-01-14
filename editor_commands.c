@@ -1,4 +1,5 @@
 #include "editor_commands.h"
+#include "row.h"
 #include "utils.h"
 #include "screen.h"
 
@@ -347,6 +348,17 @@ void editorChangeCaseCommand_(editorConfig *config, int count, EDITOR_MOTIONS mo
 
 }
 
-void editorReplaceCommand_(editorConfig *config, int count, EDITOR_MOTIONS motion){
+void editorReplaceCommand_(editorConfig *config, int count, EDITOR_MOTIONS motion, int to){
+    if ((*config).cy < 0 || (*config).cy > (*config).numrows){
+        return;
+    }
 
+    erow row = (*config).row[(*config).cy];
+    if (editor_cx_to_index(config) > row.size){
+        return;
+    }
+
+    row.chars[editor_cx_to_index(config)] = to;
+    editorUpdateRow(config, &row);
+    editorRefreshScreen(config);
 }

@@ -880,6 +880,16 @@ void mode_function_normal(){
             break;
         }
 
+        // FIXME: error with insert with a
+        case 'r':{
+            c = editorReadKey(&count);
+            if (c == '\x1b'){
+                break;
+            }
+            editorReplaceCommand_(&E, 1, 0, c);
+            break;
+        }
+
         case BACKSPACE:
         case DEL_KEY:
         case CTRL_KEY('h'):{
@@ -1269,7 +1279,6 @@ void initEditor(){
         die("init");
     }
     E.screencols = E.screencolsBase - E.last_row_digits;
-    editorInsertRow(&E, 0, "", 0);
 }
 
 int main(int argc, char *argv[]){
@@ -1278,6 +1287,9 @@ int main(int argc, char *argv[]){
     initEditor();
     if (argc > 1){
         editorOpen(argv[1]);
+    }
+    if (E.numrows == 0){
+        editorInsertRow(&E, 0, "", 0);
     }
 
     editorSetStatusMessage(&E, "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");

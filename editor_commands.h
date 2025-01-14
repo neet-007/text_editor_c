@@ -36,6 +36,6 @@ void editorPasteCommand_(editorConfig *config, int count, int motion);
 void editorSearchCommand_(editorConfig *config, int count, EDITOR_MOTIONS motion, int c);
 void editorDeleteCommand_(editorConfig *config, int count, EDITOR_MOTIONS motion);
 void editorChangeCaseCommand_(editorConfig *config, int count, EDITOR_MOTIONS motion);
-void editorReplaceCommand_(editorConfig *config, int count, EDITOR_MOTIONS motion);
+void editorReplaceCommand_(editorConfig *config, int count, EDITOR_MOTIONS motion, int to);
 
 #endif
