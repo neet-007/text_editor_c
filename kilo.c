@@ -777,7 +777,7 @@ void mode_function_normal(){
         case 'i':
         case 'I':{
             if (c == 'I'){
-                editorMoveCursorCommand(-1);
+                editorMoveCursorCommand_(&E, 1, LEFT);
             }
             E.mode = INSERT;
             break;
@@ -788,7 +788,7 @@ void mode_function_normal(){
             E.cx ++;
             E.last_cx = E.cx;
             if (c == 'A'){
-                editorMoveCursorCommand(1);
+                editorMoveCursorCommand_(&E, 1, RIGTH);
             }
             E.mode = INSERT;
             break;
@@ -1004,7 +1004,7 @@ void mode_function_insert(){
         case DEL_KEY:
         case CTRL_KEY('h'):{
             if (c == DEL_KEY){
-                editorMoveCursor(ARROW_RIGHT, 1);
+                editorMoveCursorCommand_(&E, 1, RIGTH);
             }
             editorDelChar();
             break;
@@ -1027,6 +1027,7 @@ void mode_function_insert(){
 
         case CTRL_KEY('l'):
         case '\x1b':{
+                editorMoveCursorCommand_(&E, 1, LEFT);
             E.mode = NORMAL;
             break;
         }
